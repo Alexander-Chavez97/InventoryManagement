@@ -1,0 +1,70 @@
+<div id="intake-form">
+  {% if item %}
+  <p class="success">Recorded {{ item.display_name }}{% if item.photos.count %} with {{ item.photos.count }} photo{{ item.photos.count|pluralize }}{% endif %}.</p>
+  {% endif %}
+  <form
+    method="post"
+    action="{% url 'inventory:intake' %}"
+    enctype="multipart/form-data"
+    hx-post="{% url 'inventory:intake' %}"
+    hx-encoding="multipart/form-data"
+    hx-target="#intake-form"
+    hx-swap="outerHTML"
+    hx-on::after-swap="window.InventoryIntake && InventoryIntake.bind()"
+  >
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <div class="serial-row">
+      <label for="{{ form.serial_number.id_for_label }}">Serial number</label>
+      {{ form.serial_number }}
+      {{ form.serial_number.errors }}
+      <div class="scan-actions">
+        <button type="button" class="secondary" data-scan-start>Scan with camera</button>
+        <button type="button" class="secondary" data-scan-stop hidden>Stop camera</button>
+      </div>
+      <div id="barcode-reader" class="barcode-reader" hidden></div>
+      <p class="scan-status muted" data-scan-status></p>
+    </div>
+
+    <p>
+      <label for="{{ form.item_type.id_for_label }}">{{ form.item_type.label }}</label>
+      {{ form.item_type }}
+      {{ form.item_type.errors }}
+    </p>
+    <p>
+      <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+      {{ form.status }}
+      {{ form.status.errors }}
+    </p>
+    <p>
+      <label for="{{ form.location.id_for_label }}">{{ form.location.label }}</label>
+      {{ form.location }}
+      {{ form.location.errors }}
+    </p>
+    <p>
+      <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+      {{ form.notes }}
+      {{ form.notes.errors }}
+    </p>
+
+    <div class="photo-block">
+      <p class="eyebrow">Photos</p>
+      <p class="muted">Use the phone camera for a barcode shot and item photos. You can add more than one.</p>
+      <div class="scan-actions">
+        <label class="secondary file-button">
+          Take photo
+          <input id="camera-shot" type="file" accept="image/*" capture="environment" hidden>
+        </label>
+        <label class="secondary file-button">
+          Choose from library
+          {{ form.photos }}
+        </label>
+      </div>
+      {{ form.photos.errors }}
+      <div class="photo-previews" data-photo-previews></div>
+    </div>
+
+    <button type="submit" class="primary">Record item</button>
+  </form>
+</div>

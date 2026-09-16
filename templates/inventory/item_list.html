@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Inventory search{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Inventory hub</h1>
+    <p class="muted">Search by serial, filter by status, or jump to scanner intake.</p>
+  </div>
+  <a class="primary" href="{% url 'inventory:intake' %}">New intake</a>
+</section>
+
+<section class="stats">
+  <div class="stat"><span>{{ counts.total }}</span> total</div>
+  <div class="stat"><span>{{ counts.active }}</span> active</div>
+  <div class="stat"><span>{{ counts.parts }}</span> for parts</div>
+  <div class="stat"><span>{{ counts.review }}</span> pending review</div>
+</section>
+
+<form
+  class="filters"
+  method="get"
+  hx-get="{% url 'inventory:item_list' %}"
+  hx-target="#item-results"
+  hx-swap="innerHTML"
+  hx-trigger="input delay:200ms, change"
+>
+  {{ filter_form.q }}
+  {{ filter_form.status }}
+  {{ filter_form.item_type }}
+</form>
+
+<div id="item-results">
+  {% include "inventory/partials/item_rows.html" %}
+</div>
+{% endblock %}

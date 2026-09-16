@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Inventory{% endblock %}
+{% block content %}
+<section class="card auth-card">
+  <h1>Sign in</h1>
+  <p class="muted">Staff accounts only. Inventory is not public.</p>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="primary">Sign in</button>
+  </form>
+</section>
+{% endblock %}

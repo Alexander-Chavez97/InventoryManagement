@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ item.serial_number }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'inventory:item_list' %}">← Back to search</a></p>
+<section class="split">
+  <div class="card">
+    <p class="eyebrow">Item</p>
+    <h1 class="mono">{{ item.display_name }}</h1>
+    <dl class="meta">
+      <div><dt>Serial</dt><dd>{{ item.serial_number }}</dd></div>
+      <div><dt>Type</dt><dd>{{ item.get_item_type_display }}</dd></div>
+      <div><dt>Status</dt><dd>{{ item.get_status_display }}</dd></div>
+      <div><dt>Location</dt><dd>{{ item.location|default:"Unassigned" }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Change status</h2>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="primary">Save changes</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Photos</h2>
+  {% if item.photos.all %}
+  <div class="photo-gallery">
+    {% for photo in item.photos.all %}
+    <figure>
+      <img class="item-photo" src="{{ photo.image.url }}" alt="{{ photo.get_kind_display }} photo of {{ item.serial_number }}">
+      <figcaption class="muted">{{ photo.get_kind_display }} · {{ photo.uploaded_at }}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No photos yet.</p>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data" class="photo-upload">
+    {% csrf_token %}
+    <input type="hidden" name="intent" value="photos">
+    <p>
+      <label for="{{ photo_form.kind.id_for_label }}">Kind</label>
+      {{ photo_form.kind }}
+    </p>
+    <p>
+      <label class="secondary file-button">
+        Take or upload photos
+        {{ photo_form.photos }}
+      </label>
+    </p>
+    <button type="submit" class="primary">Add photos</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Status history</h2>
+  {% if item.status_history.all %}
+  <ol class="history">
+    {% for event in item.status_history.all %}
+    <li>
+      <strong>{{ event.old_status|default:"Created" }} → {{ event.new_status }}</strong>
+      <span class="muted">
+        {{ event.changed_at }}
+        {% if event.changed_by %} · {{ event.changed_by.username }}{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted">No history yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

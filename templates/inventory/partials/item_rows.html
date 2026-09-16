@@ -1,0 +1,26 @@
+{% if items %}
+<table class="inventory-table">
+  <thead>
+    <tr>
+      <th>Serial</th>
+      <th>Type</th>
+      <th>Status</th>
+      <th>Location</th>
+      <th>Display name</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td><a href="{% url 'inventory:item_detail' item.pk %}">{{ item.serial_number }}</a></td>
+      <td>{{ item.get_item_type_display }}</td>
+      <td><span class="badge status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
+      <td>{{ item.location|default:"Unassigned" }}</td>
+      <td class="mono">{{ item.display_name }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No items match this search.</p>
+{% endif %}

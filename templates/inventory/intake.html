@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Scanner intake{% endblock %}
+{% block content %}
+<section class="card intake-card">
+  <h1>Phone / scanner intake</h1>
+  <p class="muted">USB wedge scanners still type into the serial box. On a phone, use Scan with camera, then attach photos.</p>
+  {% include "inventory/partials/intake_fields.html" %}
+</section>
+{% endblock %}
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{% static 'js/intake.js' %}"></script>
+{% endblock %}
