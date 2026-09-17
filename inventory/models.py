@@ -21,6 +21,7 @@ class Item(models.Model):
         ("ACTIVE", "Active"),
         ("PARTS", "For Parts"),
         ("REPAIR", "Pending Repair"),
+        ("REVIEW", "Pending Review"),
     ]
 
     ITEM_TYPES = [
