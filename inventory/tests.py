@@ -25,14 +25,14 @@ class InventoryFlowTests(TestCase):
             reverse("inventory:intake"),
             {
                 "serial_number": "847291",
-                "item_type": "MOTOR",
+                "item_type": "RADIO",
                 "status": "PARTS",
                 "notes": "Intake from dock",
             },
         )
         self.assertEqual(response.status_code, 302)
         item = Item.objects.get(serial_number="847291")
-        self.assertEqual(item.display_name, "847291.IndustrialMotor.ForParts")
+        self.assertEqual(item.display_name, "847291.Radio.ForParts")
         self.assertEqual(item.status_history.count(), 1)
         self.assertEqual(item.status_history.first().changed_by, self.user)
 
@@ -41,7 +41,7 @@ class InventoryFlowTests(TestCase):
             reverse("inventory:intake"),
             {
                 "serial_number": "PHOTO1",
-                "item_type": "MOTOR",
+                "item_type": "CAMERA",
                 "status": "REVIEW",
                 "photos": [jpeg_file("barcode.jpg"), jpeg_file("body.jpg")],
             },
@@ -51,7 +51,7 @@ class InventoryFlowTests(TestCase):
         self.assertEqual(item.photos.count(), 2)
 
     def test_detail_accepts_more_photos(self):
-        item = Item.objects.create(serial_number="PHOTO2", item_type="PUMP", status="ACTIVE")
+        item = Item.objects.create(serial_number="PHOTO2", item_type="VEHICLE", status="ACTIVE")
         response = self.client.post(
             reverse("inventory:item_detail", args=[item.pk]),
             {
@@ -65,14 +65,14 @@ class InventoryFlowTests(TestCase):
         self.assertEqual(item.photos.first().kind, "BARCODE")
 
     def test_list_filters_by_status(self):
-        Item.objects.create(serial_number="A1", item_type="PUMP", status="ACTIVE")
-        Item.objects.create(serial_number="B2", item_type="VALVE", status="REVIEW")
+        Item.objects.create(serial_number="A1", item_type="VEHICLE", status="ACTIVE")
+        Item.objects.create(serial_number="B2", item_type="RADIO", status="REVIEW")
         response = self.client.get(reverse("inventory:item_list"), {"status": "ACTIVE"})
         self.assertContains(response, "A1")
         self.assertNotContains(response, "B2")
 
     def test_status_change_writes_history(self):
-        item = Item.objects.create(serial_number="C3", item_type="MOTOR", status="REVIEW")
+        item = Item.objects.create(serial_number="C3", item_type="RADIO", status="REVIEW")
         response = self.client.post(
             reverse("inventory:item_detail", args=[item.pk]),
             {"status": "ACTIVE", "notes": "Ready for service"},
