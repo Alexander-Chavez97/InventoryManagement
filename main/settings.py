@@ -13,6 +13,19 @@ SECRET_KEY = os.environ.get(
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+        environment=os.environ.get("DJANGO_ENV", "production"),
+    )
+
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
@@ -87,12 +100,12 @@ TIME_ZONE = "America/Chicago"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
@@ -100,7 +113,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 12 * 1024 * 1024
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Cloudflare TLS Termination
-SECURE_PROXY_SSL_HEADER = ("HHTP_X_FORWARDED_PROTO", "https")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 

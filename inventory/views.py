@@ -65,6 +65,15 @@ def item_detail(request, pk):
     )
     if request.method == "POST" and request.POST.get("intent") == "photos":
         photo_form = ItemPhotoForm(request.POST, request.FILES)
+        print("DEBUG form.files:", photo_form.files, flush=True)
+        print("DEBUG is_valid:", photo_form.is_valid(), flush=True)
+        print("DEBUG errors:", photo_form.errors, flush=True)
+        widget = photo_form.fields["photos"].widget
+        print(
+            "DEBUG widget value_from_datadict:",
+            repr(widget.value_from_datadict(photo_form.data, photo_form.files, "photos")),
+            flush=True,
+        )
         if photo_form.is_valid():
             _save_photos(
                 item,

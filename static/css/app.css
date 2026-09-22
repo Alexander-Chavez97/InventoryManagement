@@ -9,6 +9,7 @@
   --active: #2f6b4f;
   --parts: #8a4b12;
   --review: #6b5a16;
+  --repair: #8a1c1c;
   font-family: "Segoe UI", system-ui, sans-serif;
 }
 
@@ -191,6 +192,7 @@ input, select, textarea, .scan-input {
 .status-active { background: var(--active); }
 .status-parts { background: var(--parts); }
 .status-review { background: var(--review); }
+.status-repair { background: var(--repair); }
 
 .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .meta dt { color: var(--muted); font-size: 0.85rem; }

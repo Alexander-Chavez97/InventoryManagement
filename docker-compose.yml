@@ -8,6 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backup:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -23,7 +24,13 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/mediafiles
-  
+      - ./backup:/backups
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   nginx:
     image: nginx:alpine
     restart: unless-stopped
@@ -35,6 +42,14 @@ services:
       - media_volume:/app/media:ro
     depends_on:
       - web
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+
 
 volumes:
   postgres_data:

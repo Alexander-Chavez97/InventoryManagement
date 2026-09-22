@@ -5,8 +5,20 @@ from .models import Item, ItemPhoto
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
+class MultipleFileField(forms.FileField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single_file_clean(d, initial) for d in data]
+        return single_file_clean(data, initial)
+
+
 class ScannerIntakeForm(forms.ModelForm):
-    photos = forms.FileField(
+    photos = MultipleFileField(
         required=False,
         widget=MultipleFileInput(
             attrs={
@@ -17,7 +29,6 @@ class ScannerIntakeForm(forms.ModelForm):
         ),
         help_text="Take or attach barcode and item photos.",
     )
-
     class Meta:
         model = Item
         fields = ["serial_number", "item_type", "status", "location", "notes"]
@@ -48,7 +59,7 @@ class StatusChangeForm(forms.ModelForm):
 
 
 class ItemPhotoForm(forms.Form):
-    photos = forms.FileField(
+    photos = MultipleFileField(
         required=True,
         widget=MultipleFileInput(
             attrs={
@@ -59,7 +70,6 @@ class ItemPhotoForm(forms.Form):
         ),
     )
     kind = forms.ChoiceField(choices=ItemPhoto.KIND_CHOICES, initial="DESCRIPTION")
-
 
 class ItemFilterForm(forms.Form):
     q = forms.CharField(
