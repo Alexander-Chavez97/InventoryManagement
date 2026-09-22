@@ -1,11 +1,11 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .forms import ItemFilterForm, ItemPhotoForm, ScannerIntakeForm, StatusChangeForm
+from .forms import ItemFilterForm, ItemPhotoForm, ScannerIntakeForm, StatusChangeForm, StaffUserCreationForm
 from .models import Item, ItemPhoto
 
 
@@ -153,3 +153,22 @@ def quick_status(request, pk):
         )
     messages.success(request, f"{item.serial_number} set to {item.get_status_display()}.")
     return redirect("inventory:item_list")
+
+def _is_admin(user):
+    return user.is_staff
+
+@login_required
+@user_passes_test(_is_admin)
+def create_staff_user(request):
+    if request.method == "POST":
+        form = StaffUserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            user.is_staff = False # belt-and-suspenders: this view can never create an admin
+            user.is_superuser = False
+            user.save()
+            messages.success(request, f"Staff account created for {user.username}.")
+            return redirect("inventory:create_staff")
+    else:
+        form = StaffUserCreationForm()
+    return render(request, "inventory/create_staff.html", {"form": form})

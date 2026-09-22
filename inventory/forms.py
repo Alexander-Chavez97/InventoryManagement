@@ -1,5 +1,6 @@
 from django import forms
-
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
 from .models import Item, ItemPhoto
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -90,3 +91,8 @@ class ItemFilterForm(forms.Form):
         required=False,
         choices=[("", "All types")] + list(Item.ITEM_TYPES),
     )
+
+class StaffUserCreationForm(UserCreationForm):
+    class Meta(UserCreationForm):
+        model = User
+        fields = ("username", "first_name", "last_name", "email")

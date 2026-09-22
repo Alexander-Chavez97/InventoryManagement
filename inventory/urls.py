@@ -9,4 +9,5 @@ urlpatterns = [
     path("intake/", views.scanner_intake, name="intake"),
     path("items/<int:pk>/", views.item_detail, name="item_detail"),
     path("items/<int:pk>/status/", views.quick_status, name="quick_status"),
+    path("staff/new/", views.create_staff_user, name="create_staff"),
 ]
