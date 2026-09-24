@@ -7,7 +7,7 @@
     <title>{% block title %}Inventory{% endblock %}</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/app.css' %}" />
-    <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+    <script src="{% static 'js/htmx.min.js' %}" defer></script>
   </head>
   <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     <header class="topbar">
