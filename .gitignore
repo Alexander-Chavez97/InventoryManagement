@@ -33,5 +33,10 @@ Thumbs.db
 .vscode/
 
 # Backups (contains DB dumps + media — never commit)
+backup/
 backups/
 backup.log
+
+# ZAP scan output/config — references the real production domain
+zap.yaml
+zap_report.html

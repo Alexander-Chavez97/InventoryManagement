@@ -6,12 +6,16 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-l(g@c4xzc9c_p^mr!-(y(@6bik2#g-9vk-o)r3_01#do@jc8#n",
-)
-
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "django-insecure-l(g@c4xzc9c_p^mr!-(y(@6bik2#g-9vk-o)r3_01#do@jc8#n"
+    else:
+        raise RuntimeError(
+            "DJANGO_SECRET_KEY environment variable must be set when DJANGO_DEBUG is False."
+        )
 
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
@@ -43,6 +47,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "django_htmx",
+    "axes",
     "inventory",
 ]
 
@@ -55,6 +60,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "main.urls"
@@ -114,8 +120,22 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Cloudflare TLS Termination
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_AGE = 60 * 60 * 8  # 8 hours
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Login brute-force protection (django-axes)
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1  # hours
+AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "inventory:item_list"

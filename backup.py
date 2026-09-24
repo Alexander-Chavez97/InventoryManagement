@@ -11,7 +11,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-PROJECT_DIR = Path("/opt/inventory")   # <-- set this to wherever docker-compose.yml lives
+PROJECT_DIR = Path(__file__).resolve().parent  # the folder this script lives in
 BACKUP_DIR = PROJECT_DIR / "backups"
 RETENTION_DAYS = 30
 
