@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -32,6 +33,9 @@ def _filtered_items(request):
     return form, items
 
 
+ITEMS_PER_PAGE = 25
+
+
 def _item_list_context(request):
     form, items = _filtered_items(request)
     counts = Item.objects.aggregate(
@@ -40,9 +44,14 @@ def _item_list_context(request):
         parts=Count("id", filter=Q(status="PARTS")),
         review=Count("id", filter=Q(status="REVIEW")),
     )
+    paginator = Paginator(items, ITEMS_PER_PAGE)
+    page_number = request.GET.get("page") or 1
+    page_obj = paginator.get_page(page_number)
     return {
         "filter_form": form,
-        "items": items,
+        "items": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
         "counts": counts,
     }
 
@@ -136,12 +145,8 @@ def quick_status(request, pk):
     item._changed_by = request.user
     item.save()
     if request.htmx:
-        _, items = _filtered_items(request)
-        return render(
-            request,
-            "inventory/partials/item_rows.html",
-            {"items": items},
-        )
+        context = _item_list_context(request)
+        return render(request, "inventory/partials/item_rows.html", context)
     messages.success(request, f"{item.serial_number} set to {item.get_status_display()}.")
     return redirect("inventory:item_list")
 

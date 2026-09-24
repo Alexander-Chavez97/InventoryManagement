@@ -12,15 +12,35 @@
   <tbody>
     {% for item in items %}
     <tr>
-      <td><a href="{% url 'inventory:item_detail' item.pk %}">{{ item.serial_number }}</a></td>
-      <td>{{ item.get_item_type_display }}</td>
-      <td><span class="badge status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
-      <td>{{ item.location|default:"Unassigned" }}</td>
-      <td class="mono">{{ item.display_name }}</td>
+      <td data-label="Serial"><a href="{% url 'inventory:item_detail' item.pk %}">{{ item.serial_number }}</a></td>
+      <td data-label="Type">{{ item.get_item_type_display }}</td>
+      <td data-label="Status"><span class="badge status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
+      <td data-label="Location">{{ item.location|default:"Unassigned" }}</td>
+      <td data-label="Display name" class="mono">{{ item.display_name }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+
+{% if paginator and paginator.num_pages > 1 %}
+<nav class="pagination" aria-label="Pagination">
+  {% if page_obj.has_previous %}
+  <a href="?page={{ page_obj.previous_page_number }}"
+     hx-get="{% url 'inventory:item_list' %}?page={{ page_obj.previous_page_number }}"
+     hx-target="#item-results"
+     hx-swap="innerHTML"
+     hx-include="#filter-form">&larr; Prev</a>
+  {% endif %}
+  <span class="page-info">Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a href="?page={{ page_obj.next_page_number }}"
+     hx-get="{% url 'inventory:item_list' %}?page={{ page_obj.next_page_number }}"
+     hx-target="#item-results"
+     hx-swap="innerHTML"
+     hx-include="#filter-form">Next &rarr;</a>
+  {% endif %}
+</nav>
+{% endif %}
 {% else %}
 <p class="empty">No items match this search.</p>
 {% endif %}
