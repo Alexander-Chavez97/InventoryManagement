@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent  # the folder this script lives in
-BACKUP_DIR = PROJECT_DIR / "backups"
+BACKUP_DIR = PROJECT_DIR / "backup"  # matches the ./backup:/backups bind mount in docker-compose.yml
 RETENTION_DAYS = 30
 
 
