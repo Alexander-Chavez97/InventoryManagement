@@ -96,12 +96,34 @@ class InventoryFlowTests(TestCase):
         item = Item.objects.create(serial_number="C3", item_type="RADIO", status="REVIEW")
         response = self.client.post(
             reverse("inventory:item_detail", args=[item.pk]),
-            {"status": "ACTIVE", "notes": "Ready for service"},
+            {"quantity": 1, "status": "ACTIVE", "notes": "Ready for service"},
         )
         self.assertEqual(response.status_code, 302)
         item.refresh_from_db()
         self.assertEqual(item.status, "ACTIVE")
         self.assertEqual(item.status_history.count(), 2)
+
+    def test_quantity_defaults_to_one_and_is_editable_from_item_detail(self):
+        item = Item.objects.create(serial_number="C4", item_type="RADIO", status="REVIEW")
+        self.assertEqual(item.quantity, 1)
+        response = self.client.post(
+            reverse("inventory:item_detail", args=[item.pk]),
+            {"quantity": 7, "status": "REVIEW", "notes": ""},
+        )
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 7)
+
+    def test_quantity_cannot_be_negative(self):
+        item = Item.objects.create(serial_number="C5", item_type="RADIO", status="REVIEW")
+        response = self.client.post(
+            reverse("inventory:item_detail", args=[item.pk]),
+            {"quantity": -3, "status": "REVIEW", "notes": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "greater than or equal to 0")
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 1)
 
     def test_unauthenticated_users_are_sent_to_login(self):
         self.client.logout()

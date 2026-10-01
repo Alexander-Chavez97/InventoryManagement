@@ -126,8 +126,9 @@ class ScannerIntakeForm(forms.ModelForm):
 class StatusChangeForm(forms.ModelForm):
     class Meta:
         model = Item
-        fields = ["status", "location", "notes"]
+        fields = ["quantity", "status", "location", "notes"]
         widgets = {
+            "quantity": forms.NumberInput(attrs={"min": 0, "inputmode": "numeric"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 

@@ -12,6 +12,10 @@
         <dd>{{ item.serial_number }}</dd>
       </div>
       <div>
+        <dt>Quantity</dt>
+        <dd>{{ item.quantity }}</dd>
+      </div>
+      <div>
         <dt>Category</dt>
         <dd>{{ item.category_path }}</dd>
       </div>
@@ -27,7 +31,7 @@
   </div>
 
   <div class="card">
-    <h2>Change status</h2>
+    <h2>Edit item</h2>
     <form method="post">
       {% csrf_token %} {{ form.as_p }}
       <button type="submit" class="primary">Save changes</button>

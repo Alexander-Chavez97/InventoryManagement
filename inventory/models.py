@@ -78,6 +78,7 @@ class Item(models.Model):
     ]
 
     serial_number = models.CharField(max_length=100, unique=True, db_index=True)
+    quantity = models.PositiveIntegerField(default=1)
     item_type = models.CharField(max_length=50, choices=ITEM_TYPES, blank=True)
     subsubcategory = models.ForeignKey(
         SubSubcategory,

@@ -62,12 +62,14 @@ class ItemPhotoInline(admin.TabularInline):
 class ItemAdmin(admin.ModelAdmin):
     list_display = (
         "serial_number",
+        "quantity",
         "category_path",
         "status",
         "location",
         "updated_at",
         "display_name",
     )
+    list_editable = ("quantity",)
     list_filter = ("status", "subsubcategory__subcategory__category", "item_type")
     search_fields = ("serial_number", "notes")
     autocomplete_fields = ["subsubcategory"]

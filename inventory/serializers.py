@@ -44,6 +44,7 @@ class ItemSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "serial_number",
+            "quantity",
             "item_type",
             "item_type_display",
             "category",
