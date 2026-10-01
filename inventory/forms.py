@@ -1,7 +1,9 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Item, ItemPhoto
+from django.urls import reverse_lazy
+
+from .models import Category, Item, ItemPhoto, Subcategory, SubSubcategory
 
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
@@ -19,6 +21,18 @@ class MultipleFileField(forms.FileField):
 
 
 class ScannerIntakeForm(forms.ModelForm):
+    category = forms.ModelChoiceField(
+        queryset=Category.objects.order_by("name"),
+        required=True,
+        empty_label="Select a category…",
+        label="Category",
+    )
+    subcategory = forms.ModelChoiceField(
+        queryset=Subcategory.objects.none(),
+        required=True,
+        empty_label="Select a subcategory…",
+        label="Subcategory",
+    )
     photos = MultipleFileField(
         required=False,
         widget=MultipleFileInput(
@@ -30,9 +44,13 @@ class ScannerIntakeForm(forms.ModelForm):
         ),
         help_text="Take or attach barcode and item photos.",
     )
+
     class Meta:
         model = Item
-        fields = ["serial_number", "item_type", "status", "location", "notes"]
+        fields = ["serial_number", "category", "subcategory", "subsubcategory", "status", "location", "notes"]
+        labels = {
+            "subsubcategory": "Sub-subcategory",
+        }
         widgets = {
             "serial_number": forms.TextInput(
                 attrs={
@@ -46,8 +64,63 @@ class ScannerIntakeForm(forms.ModelForm):
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["subsubcategory"].queryset = SubSubcategory.objects.none()
+        self.fields["subsubcategory"].required = True
+        self.fields["subsubcategory"].empty_label = "Select a sub-subcategory…"
+
+        self.fields["category"].widget.attrs.update(
+            {
+                "hx-get": reverse_lazy("inventory:subcategory_options"),
+                "hx-target": "#subcategory-wrapper",
+                "hx-swap": "innerHTML",
+                "hx-trigger": "change",
+            }
+        )
+        self.fields["subcategory"].widget.attrs.update(
+            {
+                "hx-get": reverse_lazy("inventory:subsubcategory_options"),
+                "hx-target": "#subsubcategory-wrapper",
+                "hx-swap": "innerHTML",
+                "hx-trigger": "change",
+            }
+        )
+
+        data = self.data if self.is_bound else None
+        category_id = data.get("category") if data else None
+        subcategory_id = data.get("subcategory") if data else None
+
+        if not category_id and self.instance and self.instance.pk and self.instance.subsubcategory_id:
+            leaf = self.instance.subsubcategory
+            category_id = leaf.subcategory.category_id
+            subcategory_id = leaf.subcategory_id
+            self.fields["category"].initial = category_id
+            self.fields["subcategory"].initial = subcategory_id
+
+        if category_id:
+            self.fields["subcategory"].queryset = Subcategory.objects.filter(
+                category_id=category_id
+            ).order_by("name")
+        if subcategory_id:
+            self.fields["subsubcategory"].queryset = SubSubcategory.objects.filter(
+                subcategory_id=subcategory_id
+            ).order_by("name")
+
     def clean_serial_number(self):
         return self.cleaned_data["serial_number"].strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        category = cleaned.get("category")
+        subcategory = cleaned.get("subcategory")
+        subsubcategory = cleaned.get("subsubcategory")
+        if subcategory and category and subcategory.category_id != category.pk:
+            self.add_error("subcategory", "Doesn't match the selected category.")
+        if subsubcategory and subcategory and subsubcategory.subcategory_id != subcategory.pk:
+            self.add_error("subsubcategory", "Doesn't match the selected subcategory.")
+        return cleaned
 
 
 class StatusChangeForm(forms.ModelForm):
@@ -87,9 +160,10 @@ class ItemFilterForm(forms.Form):
         required=False,
         choices=[("", "All statuses")] + list(Item.STATUS_CHOICES),
     )
-    item_type = forms.ChoiceField(
+    category = forms.ModelChoiceField(
         required=False,
-        choices=[("", "All types")] + list(Item.ITEM_TYPES),
+        queryset=Category.objects.order_by("name"),
+        empty_label="All categories",
     )
 
 class StaffUserCreationForm(UserCreationForm):

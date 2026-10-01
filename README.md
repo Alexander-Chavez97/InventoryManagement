@@ -25,6 +25,7 @@ This isn't just a CRUD app — it's deployed on the open internet, so it's been 
 - **Secure session/CSRF cookies** — `Secure`, `HttpOnly`, short-lived sessions, HTTPS-only redirects behind the reverse proxy.
 - **No secrets in source** — all credentials and keys are environment-variable driven (see `.env.example`); the app refuses to start in production if a required secret is missing rather than silently falling back to an insecure default.
 - **Automated backups** — scheduled Postgres dumps + media backups with retention, restored and verified rather than just assumed to work.
+- **Automated test suite** — model, view, permission, and API tests, including a test that actually exercises the login lockout (not just the config that's supposed to cause it).
 
 ## Tech stack
 
@@ -57,19 +58,29 @@ cd InventoryManagement
 cp .env.example .env   # fill in real values
 docker compose up -d --build
 docker compose exec web python manage.py migrate
+docker compose exec web python manage.py load_categories  # one-time: loads the category catalog from the *.txt files
 docker compose exec web python manage.py createsuperuser
 ```
 
 The app will be available on the port mapped in `docker-compose.yml`. For local development without the full stack (no nginx/Cloudflare), `python manage.py runserver` works against the same `.env`-driven settings.
+
+## Running tests
+
+```bash
+docker compose exec web python manage.py test
+```
+
+Works the same way outside Docker (`python manage.py test`) as long as `DJANGO_SECRET_KEY` and the Postgres env vars are set — the test runner doesn't need `DJANGO_DEBUG=True` or a live login-lockout window to pass; both are handled automatically for test runs.
 
 ## API
 
 Read-only endpoints via Django REST Framework:
 
 ```
-GET /api/items/                      # list, paginated
+GET /api/items/                      # list
 GET /api/items/?status=ACTIVE        # filter by status
-GET /api/items/?item_type=RADIO      # filter by type
+GET /api/items/?item_type=RADIO      # filter by legacy type (items recorded before the category system)
+GET /api/items/?category=<name>      # filter by top-level category
 GET /api/items/?q=<serial>           # search by serial number
 GET /api/items/<id>/                 # single item detail
 ```

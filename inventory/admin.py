@@ -1,12 +1,49 @@
 from django.contrib import admin
 
-from .models import Item, ItemPhoto, Location, StatusHistory
+from .models import Category, Item, ItemPhoto, Location, StatusHistory, Subcategory, SubSubcategory
 
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
     list_display = ("building", "aisle", "shelf", "bin")
     search_fields = ("building", "aisle", "shelf", "bin")
+
+
+class SubcategoryInline(admin.TabularInline):
+    model = Subcategory
+    extra = 0
+    show_change_link = True
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
+    inlines = [SubcategoryInline]
+
+
+class SubSubcategoryInline(admin.TabularInline):
+    model = SubSubcategory
+    extra = 0
+
+
+@admin.register(Subcategory)
+class SubcategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "category")
+    list_filter = ("category",)
+    search_fields = ("name",)
+    inlines = [SubSubcategoryInline]
+
+
+@admin.register(SubSubcategory)
+class SubSubcategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "subcategory", "category_name")
+    list_filter = ("subcategory__category",)
+    search_fields = ("name",)
+
+    @admin.display(description="Category", ordering="subcategory__category__name")
+    def category_name(self, obj):
+        return obj.subcategory.category.name
 
 
 class StatusHistoryInline(admin.TabularInline):
@@ -25,14 +62,15 @@ class ItemPhotoInline(admin.TabularInline):
 class ItemAdmin(admin.ModelAdmin):
     list_display = (
         "serial_number",
-        "item_type",
+        "category_path",
         "status",
         "location",
         "updated_at",
         "display_name",
     )
-    list_filter = ("status", "item_type")
+    list_filter = ("status", "subsubcategory__subcategory__category", "item_type")
     search_fields = ("serial_number", "notes")
+    autocomplete_fields = ["subsubcategory"]
     inlines = [ItemPhotoInline, StatusHistoryInline]
     readonly_fields = ("created_at", "updated_at")
 

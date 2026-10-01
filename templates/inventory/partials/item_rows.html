@@ -3,7 +3,7 @@
   <thead>
     <tr>
       <th>Serial</th>
-      <th>Type</th>
+      <th>Category</th>
       <th>Status</th>
       <th>Location</th>
       <th>Display name</th>
@@ -13,7 +13,7 @@
     {% for item in items %}
     <tr>
       <td data-label="Serial"><a href="{% url 'inventory:item_detail' item.pk %}">{{ item.serial_number }}</a></td>
-      <td data-label="Type">{{ item.get_item_type_display }}</td>
+      <td data-label="Category">{{ item.category_path }}</td>
       <td data-label="Status"><span class="badge status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
       <td data-label="Location">{{ item.location|default:"Unassigned" }}</td>
       <td data-label="Display name" class="mono">{{ item.display_name }}</td>

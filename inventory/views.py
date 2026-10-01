@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .forms import ItemFilterForm, ItemPhotoForm, ScannerIntakeForm, StatusChangeForm, StaffUserCreationForm
-from .models import Item, ItemPhoto
+from .models import Item, ItemPhoto, Subcategory, SubSubcategory
 
 
 def _save_photos(item, files, kind="DESCRIPTION"):
@@ -19,17 +19,19 @@ def _save_photos(item, files, kind="DESCRIPTION"):
 
 def _filtered_items(request):
     form = ItemFilterForm(request.GET)
-    items = Item.objects.select_related("location")
+    items = Item.objects.select_related(
+        "location", "subsubcategory__subcategory__category"
+    )
     if form.is_valid():
         query = form.cleaned_data.get("q")
         status = form.cleaned_data.get("status")
-        item_type = form.cleaned_data.get("item_type")
+        category = form.cleaned_data.get("category")
         if query:
             items = items.filter(serial_number__icontains=query.strip())
         if status:
             items = items.filter(status=status)
-        if item_type:
-            items = items.filter(item_type=item_type)
+        if category:
+            items = items.filter(subsubcategory__subcategory__category=category)
     return form, items
 
 
@@ -67,9 +69,9 @@ def item_list(request):
 @login_required
 def item_detail(request, pk):
     item = get_object_or_404(
-        Item.objects.select_related("location").prefetch_related(
-            "status_history__changed_by", "photos"
-        ),
+        Item.objects.select_related(
+            "location", "subsubcategory__subcategory__category"
+        ).prefetch_related("status_history__changed_by", "photos"),
         pk=pk,
     )
     if request.method == "POST" and request.POST.get("intent") == "photos":
@@ -131,6 +133,36 @@ def scanner_intake(request):
     else:
         form = ScannerIntakeForm()
     return render(request, "inventory/intake.html", {"form": form})
+
+
+@login_required
+def subcategory_options(request):
+    category_id = request.GET.get("category")
+    subcategories = (
+        Subcategory.objects.filter(category_id=category_id).order_by("name")
+        if category_id
+        else Subcategory.objects.none()
+    )
+    return render(
+        request,
+        "inventory/partials/subcategory_options.html",
+        {"subcategories": subcategories},
+    )
+
+
+@login_required
+def subsubcategory_options(request):
+    subcategory_id = request.GET.get("subcategory")
+    subsubcategories = (
+        SubSubcategory.objects.filter(subcategory_id=subcategory_id).order_by("name")
+        if subcategory_id
+        else SubSubcategory.objects.none()
+    )
+    return render(
+        request,
+        "inventory/partials/subsubcategory_options.html",
+        {"subsubcategories": subsubcategories},
+    )
 
 
 @login_required

@@ -2,15 +2,22 @@
 Django settings for main project.
 """
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
+# True when running `manage.py test` (any test runner invocation), regardless
+# of DJANGO_DEBUG. Without this, the production-hardening settings below
+# (SECRET_KEY requirement, SECURE_SSL_REDIRECT) break `manage.py test` any
+# time it's run the way this project actually deploys -- with DEBUG=False.
+TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
+
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
-    if DEBUG:
+    if DEBUG or TESTING:
         SECRET_KEY = "django-insecure-l(g@c4xzc9c_p^mr!-(y(@6bik2#g-9vk-o)r3_01#do@jc8#n"
     else:
         raise RuntimeError(
@@ -120,7 +127,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Cloudflare TLS Termination
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = not DEBUG
+SECURE_SSL_REDIRECT = not DEBUG and not TESTING
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
@@ -136,6 +143,7 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # hours
 AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
 AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+AXES_ENABLED = not TESTING
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "inventory:item_list"

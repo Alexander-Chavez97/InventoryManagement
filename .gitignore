@@ -40,3 +40,5 @@ backup.log
 # ZAP scan output/config — references the real production domain
 zap.yaml
 zap_report.html
+# Scratch folder used when moving files that need manual deletion
+_to_delete/

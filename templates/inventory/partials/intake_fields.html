@@ -28,9 +28,19 @@
     </div>
 
     <p>
-      <label for="{{ form.item_type.id_for_label }}">{{ form.item_type.label }}</label>
-      {{ form.item_type }}
-      {{ form.item_type.errors }}
+      <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
+      {{ form.category }}
+      {{ form.category.errors }}
+    </p>
+    <p>
+      <label for="{{ form.subcategory.id_for_label }}">{{ form.subcategory.label }}</label>
+      <div id="subcategory-wrapper">{{ form.subcategory }}</div>
+      {{ form.subcategory.errors }}
+    </p>
+    <p>
+      <label for="{{ form.subsubcategory.id_for_label }}">{{ form.subsubcategory.label }}</label>
+      <div id="subsubcategory-wrapper">{{ form.subsubcategory }}</div>
+      {{ form.subsubcategory.errors }}
     </p>
     <p>
       <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>

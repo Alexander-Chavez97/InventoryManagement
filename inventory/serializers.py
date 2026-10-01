@@ -28,6 +28,16 @@ class ItemSerializer(serializers.ModelSerializer):
     photos = ItemPhotoSerializer(many=True, read_only=True)
     item_type_display = serializers.CharField(source="get_item_type_display", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    category = serializers.CharField(
+        source="subsubcategory.subcategory.category.name", read_only=True, default=None
+    )
+    subcategory = serializers.CharField(
+        source="subsubcategory.subcategory.name", read_only=True, default=None
+    )
+    subsubcategory_name = serializers.CharField(
+        source="subsubcategory.name", read_only=True, default=None
+    )
+    category_path = serializers.CharField(read_only=True)
 
     class Meta:
         model = Item
@@ -36,6 +46,10 @@ class ItemSerializer(serializers.ModelSerializer):
             "serial_number",
             "item_type",
             "item_type_display",
+            "category",
+            "subcategory",
+            "subsubcategory_name",
+            "category_path",
             "status",
             "status_display",
             "location",

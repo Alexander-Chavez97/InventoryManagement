@@ -16,6 +16,49 @@ class Location(models.Model):
         return " - ".join([p for p in parts if p])
 
 
+class Category(models.Model):
+    """Top-level catalog category (Video Surveillance, Radio Communication, ...)."""
+
+    name = models.CharField(max_length=150, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "Categories"
+
+    def __str__(self):
+        return self.name
+
+
+class Subcategory(models.Model):
+    category = models.ForeignKey(
+        Category, on_delete=models.CASCADE, related_name="subcategories"
+    )
+    name = models.CharField(max_length=150)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "Subcategories"
+        unique_together = [("category", "name")]
+
+    def __str__(self):
+        return f"{self.category.name} / {self.name}"
+
+
+class SubSubcategory(models.Model):
+    subcategory = models.ForeignKey(
+        Subcategory, on_delete=models.CASCADE, related_name="subsubcategories"
+    )
+    name = models.CharField(max_length=150)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "Sub-subcategories"
+        unique_together = [("subcategory", "name")]
+
+    def __str__(self):
+        return f"{self.subcategory.category.name} / {self.subcategory.name} / {self.name}"
+
+
 class Item(models.Model):
     STATUS_CHOICES = [
         ("ACTIVE", "Active"),
@@ -24,6 +67,10 @@ class Item(models.Model):
         ("REVIEW", "Pending Review"),
     ]
 
+    # Legacy classification, kept only for items recorded before the
+    # category/subcategory/sub-subcategory system replaced it. No longer
+    # shown on the intake form -- new items are classified via
+    # `subsubcategory` instead. See Category/Subcategory/SubSubcategory.
     ITEM_TYPES = [
         ("CAMERA", "Camera"),
         ("RADIO", "Radio"),
@@ -31,7 +78,14 @@ class Item(models.Model):
     ]
 
     serial_number = models.CharField(max_length=100, unique=True, db_index=True)
-    item_type = models.CharField(max_length=50, choices=ITEM_TYPES)
+    item_type = models.CharField(max_length=50, choices=ITEM_TYPES, blank=True)
+    subsubcategory = models.ForeignKey(
+        SubSubcategory,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="items",
+    )
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="REVIEW", db_index=True
     )
@@ -50,8 +104,25 @@ class Item(models.Model):
         ordering = ["-updated_at"]
 
     @property
+    def category_path(self):
+        """Full breadcrumb through the new hierarchy, for display."""
+        if self.subsubcategory_id:
+            ssc = self.subsubcategory
+            return f"{ssc.subcategory.category.name} → {ssc.subcategory.name} → {ssc.name}"
+        if self.item_type:
+            return self.get_item_type_display()
+        return "Uncategorized"
+
+    @property
     def display_name(self):
-        type_str = self.get_item_type_display().replace(" ", "")
+        if self.subsubcategory_id:
+            type_str = (
+                self.subsubcategory.subcategory.category.name.replace(" ", "").replace("/", "")
+            )
+        elif self.item_type:
+            type_str = self.get_item_type_display().replace(" ", "")
+        else:
+            type_str = "Uncategorized"
         status_str = self.get_status_display().replace(" ", "")
         return f"{self.serial_number}.{type_str}.{status_str}"
 

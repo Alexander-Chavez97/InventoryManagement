@@ -1,4 +1,5 @@
-{% extends "base.html" %} {% block title %} {{ item.serial_number }}{%endblock%}
+{% extends "base.html" %}
+{% block title %} {{ item.serial_number }}{%endblock%}
 {% block content %}
 <p><a href="{% url 'inventory:item_list' %}">← Back to search</a></p>
 <section class="split">
@@ -11,8 +12,8 @@
         <dd>{{ item.serial_number }}</dd>
       </div>
       <div>
-        <dt>Type</dt>
-        <dd>{{ item.get_item_type_display }}</dd>
+        <dt>Category</dt>
+        <dd>{{ item.category_path }}</dd>
       </div>
       <div>
         <dt>Status</dt>
