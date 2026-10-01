@@ -1,0 +1,8 @@
+# Force LF line endings for files that run inside Linux containers,
+# regardless of core.autocrlf on whatever Windows machine checks them out.
+# Without this, Git for Windows can silently convert entrypoint.sh to
+# CRLF on clone/checkout, which breaks its shebang line (#!/bin/sh\r is
+# not a valid interpreter path) and makes the web container crash-loop
+# with "exec ./entrypoint.sh: no such file or directory".
+entrypoint.sh text eol=lf
+*.sh text eol=lf
