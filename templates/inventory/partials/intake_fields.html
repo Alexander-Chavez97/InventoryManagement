@@ -28,6 +28,12 @@
     </div>
 
     <p>
+      <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+      {{ form.quantity }}
+      {{ form.quantity.errors }}
+    </p>
+
+    <p>
       <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
       {{ form.category }}
       {{ form.category.errors }}

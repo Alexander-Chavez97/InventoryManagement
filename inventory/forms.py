@@ -47,7 +47,7 @@ class ScannerIntakeForm(forms.ModelForm):
 
     class Meta:
         model = Item
-        fields = ["serial_number", "category", "subcategory", "subsubcategory", "status", "location", "notes"]
+        fields = ["serial_number", "quantity", "category", "subcategory", "subsubcategory", "status", "location", "notes"]
         labels = {
             "subsubcategory": "Sub-subcategory",
         }
@@ -61,6 +61,7 @@ class ScannerIntakeForm(forms.ModelForm):
                     "class": "scan-input",
                 }
             ),
+            "quantity": forms.NumberInput(attrs={"min": 0, "inputmode": "numeric"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 

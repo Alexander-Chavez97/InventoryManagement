@@ -42,6 +42,7 @@ class InventoryFlowTests(TestCase):
             reverse("inventory:intake"),
             {
                 "serial_number": "847291",
+                "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
                 "subsubcategory": self.subsubcategory.pk,
@@ -55,11 +56,29 @@ class InventoryFlowTests(TestCase):
         self.assertEqual(item.status_history.count(), 1)
         self.assertEqual(item.status_history.first().changed_by, self.user)
 
+    def test_intake_sets_quantity(self):
+        response = self.client.post(
+            reverse("inventory:intake"),
+            {
+                "serial_number": "QTY1",
+                "quantity": 5,
+                "category": self.category.pk,
+                "subcategory": self.subcategory.pk,
+                "subsubcategory": self.subsubcategory.pk,
+                "status": "ACTIVE",
+                "notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        item = Item.objects.get(serial_number="QTY1")
+        self.assertEqual(item.quantity, 5)
+
     def test_intake_saves_photos(self):
         response = self.client.post(
             reverse("inventory:intake"),
             {
                 "serial_number": "PHOTO1",
+                "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
                 "subsubcategory": self.subsubcategory.pk,
@@ -206,6 +225,7 @@ class FormTests(TestCase):
         form = ScannerIntakeForm(
             data={
                 "serial_number": "  123456  ",
+                "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
                 "subsubcategory": self.subsubcategory.pk,
@@ -222,6 +242,7 @@ class FormTests(TestCase):
         form = ScannerIntakeForm(
             data={
                 "serial_number": "999999",
+                "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": other_subcategory.pk,
                 "subsubcategory": self.subsubcategory.pk,
