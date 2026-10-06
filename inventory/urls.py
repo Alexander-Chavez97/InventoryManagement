@@ -12,4 +12,8 @@ urlpatterns = [
     path("items/<int:pk>/", views.item_detail, name="item_detail"),
     path("items/<int:pk>/status/", views.quick_status, name="quick_status"),
     path("staff/new/", views.create_staff_user, name="create_staff"),
+    path("shipments/", views.shipment_list, name="shipment_list"),
+    path("shipments/new/", views.shipment_new, name="shipment_new"),
+    path("shipments/<int:pk>/", views.shipment_detail, name="shipment_detail"),
+    path("shipments/<int:pk>/resend-email/", views.shipment_resend_email, name="shipment_resend_email"),
 ]

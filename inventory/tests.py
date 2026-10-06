@@ -1,6 +1,7 @@
 from io import BytesIO
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import TestCase, override_settings
@@ -9,7 +10,7 @@ from PIL import Image
 from rest_framework.test import APIClient
 
 from .forms import ItemFilterForm, ScannerIntakeForm
-from .models import Category, Item, Location, Subcategory, SubSubcategory
+from .models import Category, Item, Location, Shipment, Subcategory, SubSubcategory
 
 
 def jpeg_file(name="shot.jpg"):
@@ -110,6 +111,26 @@ class InventoryFlowTests(TestCase):
         response = self.client.get(reverse("inventory:item_list"), {"status": "ACTIVE"})
         self.assertContains(response, "A1")
         self.assertNotContains(response, "B2")
+
+    def test_list_hides_out_of_stock_items_by_default(self):
+        Item.objects.create(serial_number="INSTOCK1", item_type="VEHICLE", status="ACTIVE", quantity=3)
+        Item.objects.create(serial_number="EMPTY1", item_type="VEHICLE", status="ACTIVE", quantity=0)
+        response = self.client.get(reverse("inventory:item_list"))
+        self.assertContains(response, "INSTOCK1")
+        self.assertNotContains(response, "EMPTY1")
+
+    def test_list_shows_out_of_stock_items_when_requested(self):
+        Item.objects.create(serial_number="EMPTY2", item_type="VEHICLE", status="ACTIVE", quantity=0)
+        response = self.client.get(reverse("inventory:item_list"), {"include_out_of_stock": "on"})
+        self.assertContains(response, "EMPTY2")
+
+    def test_total_count_follows_out_of_stock_toggle(self):
+        Item.objects.create(serial_number="INSTOCK2", item_type="VEHICLE", status="ACTIVE", quantity=3)
+        Item.objects.create(serial_number="EMPTY3", item_type="VEHICLE", status="ACTIVE", quantity=0)
+        response = self.client.get(reverse("inventory:item_list"))
+        self.assertEqual(response.context["counts"]["total"], 1)
+        response = self.client.get(reverse("inventory:item_list"), {"include_out_of_stock": "on"})
+        self.assertEqual(response.context["counts"]["total"], 2)
 
     def test_status_change_writes_history(self):
         item = Item.objects.create(serial_number="C3", item_type="RADIO", status="REVIEW")
@@ -474,3 +495,121 @@ class LoginLockoutTests(TestCase):
         # A locked-out attempt must not succeed, even with the right password.
         self.assertNotEqual(response.status_code, 302)
         self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+
+def _shipment_formset_data(lines, total=8):
+    """Build the `line-...` formset POST fields for a list of (item, qty)
+    tuples, padding the rest of the formset out to `total` blank rows."""
+    data = {
+        "line-TOTAL_FORMS": str(total),
+        "line-INITIAL_FORMS": "0",
+        "line-MIN_NUM_FORMS": "0",
+        "line-MAX_NUM_FORMS": "1000",
+    }
+    for i in range(total):
+        if i < len(lines):
+            item, qty = lines[i]
+            data[f"line-{i}-item"] = str(item.pk)
+            data[f"line-{i}-quantity_shipped"] = str(qty)
+        else:
+            data[f"line-{i}-item"] = ""
+            data[f"line-{i}-quantity_shipped"] = ""
+    return data
+
+
+class ShipmentTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="test-pass-123")
+        self.client.login(username="alex", password="test-pass-123")
+        cat, sub, ssc = make_category_chain()
+        self.item = Item.objects.create(
+            serial_number="SHIP1", subsubcategory=ssc, status="ACTIVE", quantity=10
+        )
+
+    def _header_data(self, **overrides):
+        data = {
+            "client_name": "Acme Corp",
+            "client_email": "acme@example.com",
+            "job_reference": "PO-100",
+            "notes": "",
+        }
+        data.update(overrides)
+        return data
+
+    def test_preview_does_not_touch_inventory_or_send_email(self):
+        data = {**self._header_data(), **_shipment_formset_data([(self.item, 3)])}
+        response = self.client.post(reverse("inventory:shipment_new"), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Confirm this shipment?")
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 10)
+        self.assertEqual(Shipment.objects.count(), 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_confirm_decrements_inventory_creates_shipment_and_emails_client(self):
+        data = {
+            **self._header_data(),
+            **_shipment_formset_data([(self.item, 3)]),
+            "confirm": "1",
+        }
+        response = self.client.post(reverse("inventory:shipment_new"), data)
+        self.assertEqual(response.status_code, 302)
+
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 7)
+
+        shipment = Shipment.objects.get()
+        self.assertEqual(shipment.client_name, "Acme Corp")
+        self.assertEqual(shipment.client_email, "acme@example.com")
+        self.assertEqual(shipment.job_reference, "PO-100")
+        self.assertEqual(shipment.created_by, self.user)
+        self.assertEqual(shipment.lines.count(), 1)
+        self.assertEqual(shipment.lines.get().quantity_shipped, 3)
+        self.assertIsNotNone(shipment.email_sent_at)
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.to, ["acme@example.com"])
+        self.assertIn("SHIP1", sent.body)
+        self.assertIn("3", sent.body)
+
+    def test_cannot_ship_more_than_on_hand(self):
+        data = {
+            **self._header_data(),
+            **_shipment_formset_data([(self.item, 11)]),  # only 10 on hand
+            "confirm": "1",
+        }
+        response = self.client.post(reverse("inventory:shipment_new"), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Only 10 on hand")
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 10)
+        self.assertEqual(Shipment.objects.count(), 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_same_item_on_two_lines_is_rejected(self):
+        data = {
+            **self._header_data(),
+            **_shipment_formset_data([(self.item, 2), (self.item, 1)]),
+        }
+        response = self.client.post(reverse("inventory:shipment_new"), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already on another line")
+        self.assertEqual(Shipment.objects.count(), 0)
+
+    def test_shipment_requires_at_least_one_line(self):
+        data = {**self._header_data(), **_shipment_formset_data([])}
+        response = self.client.post(reverse("inventory:shipment_new"), data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Add at least one item")
+
+    def test_item_detail_shows_shipment_history(self):
+        data = {
+            **self._header_data(),
+            **_shipment_formset_data([(self.item, 4)]),
+            "confirm": "1",
+        }
+        self.client.post(reverse("inventory:shipment_new"), data)
+        response = self.client.get(reverse("inventory:item_detail", args=[self.item.pk]))
+        self.assertContains(response, "4 sent to")
+        self.assertContains(response, "Acme")

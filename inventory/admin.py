@@ -1,6 +1,16 @@
 from django.contrib import admin
 
-from .models import Category, Item, ItemPhoto, Location, StatusHistory, Subcategory, SubSubcategory
+from .models import (
+    Category,
+    Item,
+    ItemPhoto,
+    Location,
+    Shipment,
+    ShipmentLine,
+    StatusHistory,
+    Subcategory,
+    SubSubcategory,
+)
 
 
 @admin.register(Location)
@@ -87,3 +97,21 @@ class StatusHistoryAdmin(admin.ModelAdmin):
     list_filter = ("new_status",)
     search_fields = ("item__serial_number",)
     readonly_fields = ("item", "old_status", "new_status", "changed_by", "changed_at")
+
+
+class ShipmentLineInline(admin.TabularInline):
+    model = ShipmentLine
+    extra = 0
+    autocomplete_fields = ["item"]
+
+
+@admin.register(Shipment)
+class ShipmentAdmin(admin.ModelAdmin):
+    list_display = ("id", "client_name", "client_email", "job_reference", "created_by", "created_at", "email_delivered")
+    search_fields = ("client_name", "client_email", "job_reference")
+    inlines = [ShipmentLineInline]
+    readonly_fields = ("created_by", "created_at", "email_sent_at")
+
+    @admin.display(boolean=True, description="Emailed")
+    def email_delivered(self, obj):
+        return obj.email_delivered
