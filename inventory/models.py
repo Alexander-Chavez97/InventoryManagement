@@ -190,3 +190,45 @@ class ItemPhoto(models.Model):
 
     def __str__(self):
         return f"{self.item.serial_number} {self.get_kind_display()}"
+
+
+class Shipment(models.Model):
+    """A single outbound shipment: a set of items sent to one client/job,
+    with an emailed notice of what went out. The client is not a saved
+    record -- just a name/email typed in on the shipment form each time."""
+
+    client_name = models.CharField(max_length=150)
+    client_email = models.EmailField()
+    job_reference = models.CharField(
+        max_length=150, blank=True, help_text="PO number, job name/number, etc."
+    )
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="shipments"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    email_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Shipment #{self.pk} to {self.client_name}"
+
+    @property
+    def email_delivered(self):
+        return self.email_sent_at is not None
+
+
+class ShipmentLine(models.Model):
+    """One item/quantity sent out as part of a Shipment."""
+
+    shipment = models.ForeignKey(Shipment, on_delete=models.CASCADE, related_name="lines")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="shipment_lines")
+    quantity_shipped = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.quantity_shipped} x {self.item.serial_number}"

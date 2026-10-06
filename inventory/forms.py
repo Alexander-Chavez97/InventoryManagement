@@ -3,7 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.urls import reverse_lazy
 
-from .models import Category, Item, ItemPhoto, Subcategory, SubSubcategory
+from .models import Category, Item, ItemPhoto, Shipment, Subcategory, SubSubcategory
 
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
@@ -167,8 +167,136 @@ class ItemFilterForm(forms.Form):
         queryset=Category.objects.order_by("name"),
         empty_label="All categories",
     )
+    include_out_of_stock = forms.BooleanField(
+        required=False,
+        label="Show out-of-stock items",
+    )
 
 class StaffUserCreationForm(UserCreationForm):
     class Meta(UserCreationForm):
         model = User
         fields = ("username", "first_name", "last_name", "email")
+
+
+class ShipmentHeaderForm(forms.ModelForm):
+    class Meta:
+        model = Shipment
+        fields = ["client_name", "client_email", "job_reference", "notes"]
+        labels = {
+            "client_name": "Client name",
+            "client_email": "Client email",
+        }
+        widgets = {
+            "client_name": forms.TextInput(attrs={"placeholder": "Who this is going to"}),
+            "client_email": forms.EmailInput(attrs={"placeholder": "Where to send the shipment notice"}),
+            "job_reference": forms.TextInput(attrs={"placeholder": "PO number, job name, etc. (optional)"}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+
+class ItemQuantitySelect(forms.Select):
+    """A <select> of items that stamps each <option> with the item's current
+    on-hand quantity as data-quantity, so the template's JS can show "0 of N
+    total" next to the quantity field without a round trip to the server."""
+
+    def __init__(self, *args, quantities=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.quantities = quantities or {}
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        raw = value.value if hasattr(value, "value") else value
+        if raw not in (None, ""):
+            try:
+                pk = int(raw)
+            except (TypeError, ValueError):
+                pk = None
+            if pk is not None and pk in self.quantities:
+                option["attrs"]["data-quantity"] = self.quantities[pk]
+        return option
+
+
+class ShipmentLineForm(forms.Form):
+    """One row: an item and how much of it is going out. An entirely blank
+    row (no item picked) is treated as unused, not an error -- this lets the
+    formset always render a handful of spare rows."""
+
+    item = forms.ModelChoiceField(
+        queryset=Item.objects.filter(quantity__gt=0).order_by("serial_number"),
+        required=False,
+        empty_label="Select an item…",
+        widget=ItemQuantitySelect,
+    )
+    quantity_shipped = forms.IntegerField(
+        required=False,
+        min_value=1,
+        label="Qty",
+        widget=forms.NumberInput(attrs={"min": 1, "inputmode": "numeric"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["item"].widget.quantities = {
+            item.pk: item.quantity for item in self.fields["item"].queryset
+        }
+
+    def is_blank(self):
+        data = getattr(self, "cleaned_data", None) or {}
+        return not data.get("item") and not data.get("quantity_shipped")
+
+    def clean(self):
+        cleaned = super().clean()
+        item = cleaned.get("item")
+        quantity_shipped = cleaned.get("quantity_shipped")
+
+        if item is None and quantity_shipped is None:
+            return cleaned  # whole row left blank -- fine, just unused
+
+        if item is None:
+            self.add_error("item", "Choose an item, or leave this whole row blank.")
+            return cleaned
+        if quantity_shipped is None:
+            self.add_error("quantity_shipped", "Enter a quantity, or leave this whole row blank.")
+            return cleaned
+
+        if quantity_shipped > item.quantity:
+            self.add_error(
+                "quantity_shipped",
+                f"Only {item.quantity} on hand for {item.serial_number} -- can't ship {quantity_shipped}.",
+            )
+        return cleaned
+
+
+class BaseShipmentLineFormSet(forms.BaseFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+
+        seen_item_ids = set()
+        has_at_least_one_line = False
+        for form in self.forms:
+            if self.can_delete and self._should_delete_form(form):
+                continue
+            item = form.cleaned_data.get("item") if form.cleaned_data else None
+            if item is None:
+                continue
+            has_at_least_one_line = True
+            if item.pk in seen_item_ids:
+                form.add_error(
+                    "item",
+                    "This item is already on another line in this shipment -- "
+                    "combine them into a single line instead.",
+                )
+            seen_item_ids.add(item.pk)
+
+        if not has_at_least_one_line:
+            raise forms.ValidationError("Add at least one item to the shipment.")
+
+
+ShipmentLineFormSet = forms.formset_factory(
+    ShipmentLineForm,
+    formset=BaseShipmentLineFormSet,
+    extra=8,
+    can_delete=True,
+)

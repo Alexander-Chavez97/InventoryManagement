@@ -98,4 +98,24 @@
   <p class="muted">No history yet.</p>
   {% endif %}
 </section>
+
+<section class="card">
+  <h2>Shipped out</h2>
+  {% if item.shipment_lines.all %}
+  <ol class="history">
+    {% for line in item.shipment_lines.all %}
+    <li>
+      <strong>{{ line.quantity_shipped }} sent to {{ line.shipment.client_name }}</strong>
+      <span class="muted">
+        {{ line.shipment.created_at }}
+        {% if line.shipment.job_reference %} · {{ line.shipment.job_reference }}{% endif %}
+        · <a href="{% url 'inventory:shipment_detail' line.shipment.pk %}">view shipment</a>
+      </span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted">Never shipped out.</p>
+  {% endif %}
+</section>
 {% endblock %}

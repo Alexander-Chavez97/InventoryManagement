@@ -1,0 +1,6 @@
+<section class="stats" id="item-stats"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="stat"><span>{{ counts.total }}</span> total</div>
+  <div class="stat"><span>{{ counts.active }}</span> active</div>
+  <div class="stat"><span>{{ counts.parts }}</span> for parts</div>
+  <div class="stat"><span>{{ counts.review }}</span> pending review</div>
+</section>

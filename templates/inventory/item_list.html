@@ -9,12 +9,7 @@
   <a class="primary" href="{% url 'inventory:intake' %}">New intake</a>
 </section>
 
-<section class="stats">
-  <div class="stat"><span>{{ counts.total }}</span> total</div>
-  <div class="stat"><span>{{ counts.active }}</span> active</div>
-  <div class="stat"><span>{{ counts.parts }}</span> for parts</div>
-  <div class="stat"><span>{{ counts.review }}</span> pending review</div>
-</section>
+{% include "inventory/partials/item_stats.html" %}
 
 <form
   id="filter-form"
@@ -28,6 +23,9 @@
   {{ filter_form.q }}
   {{ filter_form.status }}
   {{ filter_form.category }}
+  <label style="display: flex; align-items: center; gap: 0.5rem;">
+    {{ filter_form.include_out_of_stock.label }} {{ filter_form.include_out_of_stock }}
+  </label>
 </form>
 
 <div id="item-results">

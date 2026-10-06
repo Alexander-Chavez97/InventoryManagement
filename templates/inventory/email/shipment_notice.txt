@@ -1,0 +1,10 @@
+Hi {{ shipment.client_name }},
+
+Here's what shipped{% if shipment.job_reference %} for {{ shipment.job_reference }}{% endif %} on {{ shipment.created_at|date:"N j, Y" }}:
+
+{% for line in lines %}- {{ line.quantity_shipped }} x {{ line.item.category_path }} (serial {{ line.item.serial_number }})
+{% endfor %}
+{% if shipment.notes %}
+Notes: {{ shipment.notes }}
+{% endif %}
+Questions? Just reply to this email.

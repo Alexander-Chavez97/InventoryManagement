@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Shipments{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Outbound shipments</h1>
+    <p class="muted">Everything sent out to clients/jobs so far.</p>
+  </div>
+  <a class="primary" href="{% url 'inventory:shipment_new' %}">New shipment</a>
+</section>
+
+{% if shipments %}
+<table class="inventory-table">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Client</th>
+      <th>Job reference</th>
+      <th>Items</th>
+      <th>Email</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for shipment in shipments %}
+    <tr>
+      <td data-label="Date"><a href="{% url 'inventory:shipment_detail' shipment.pk %}">{{ shipment.created_at }}</a></td>
+      <td data-label="Client">{{ shipment.client_name }}</td>
+      <td data-label="Job reference">{{ shipment.job_reference|default:"—" }}</td>
+      <td data-label="Items">{{ shipment.lines.all|length }}</td>
+      <td data-label="Email">
+        {% if shipment.email_delivered %}
+        <span class="badge status-active">Sent</span>
+        {% else %}
+        <span class="badge status-review">Not sent</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No shipments yet.</p>
+{% endif %}
+{% endblock %}

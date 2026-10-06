@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Review shipment{% endblock %}
+{% block content %}
+<section class="card">
+  <p class="eyebrow">Review -- nothing has happened yet</p>
+  <h1>Confirm this shipment?</h1>
+  <p class="muted">
+    Confirming will deduct these quantities from inventory and email
+    <strong>{{ client_email }}</strong> a notice of what shipped. Nothing is
+    saved or sent unless you confirm below.
+  </p>
+
+  <dl class="meta">
+    <div>
+      <dt>Client</dt>
+      <dd>{{ client_name }}</dd>
+    </div>
+    <div>
+      <dt>Client email</dt>
+      <dd>{{ client_email }}</dd>
+    </div>
+    {% if job_reference %}
+    <div>
+      <dt>Job reference</dt>
+      <dd>{{ job_reference }}</dd>
+    </div>
+    {% endif %}
+  </dl>
+  {% if notes %}<p><strong>Notes:</strong> {{ notes }}</p>{% endif %}
+
+  <table class="inventory-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Category</th>
+        <th>Qty shipping</th>
+        <th>Remaining after</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item, qty, remaining in lines %}
+      <tr>
+        <td data-label="Item" class="mono">{{ item.serial_number }}</td>
+        <td data-label="Category">{{ item.category_path }}</td>
+        <td data-label="Qty shipping">{{ qty }}</td>
+        <td data-label="Remaining after">{{ remaining }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="scan-actions">
+    <a class="secondary" href="{% url 'inventory:shipment_new' %}">Edit instead</a>
+    <form method="post" action="{% url 'inventory:shipment_new' %}">
+      {% csrf_token %}
+      {% for key, value in hidden_fields %}
+      <input type="hidden" name="{{ key }}" value="{{ value }}" />
+      {% endfor %}
+      <input type="hidden" name="confirm" value="1" />
+      <button type="submit" class="primary">Confirm &amp; send</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

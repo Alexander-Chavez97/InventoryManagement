@@ -160,3 +160,20 @@ REST_FRAMEWORK = {
         "user": "120/minute",
     },
 }
+
+# Outbound shipment-notice email. Defaults to printing to the console (log
+# output) when neither EMAIL_HOST nor an explicit DJANGO_EMAIL_BACKEND is
+# set, so the app runs fine with nothing configured -- but shipment emails
+# won't actually reach anyone until real SMTP settings are added to .env.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "inventory@novastartx.com")

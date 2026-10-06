@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}New shipment{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>New outbound shipment</h1>
+    <p class="muted">Say who it's going to, add what's going out, then review before anything changes.</p>
+  </div>
+</section>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {{ header_form.non_field_errors }}
+  <p>
+    <label for="{{ header_form.client_name.id_for_label }}">{{ header_form.client_name.label }}</label>
+    {{ header_form.client_name }}
+    {{ header_form.client_name.errors }}
+  </p>
+  <p>
+    <label for="{{ header_form.client_email.id_for_label }}">{{ header_form.client_email.label }}</label>
+    {{ header_form.client_email }}
+    {{ header_form.client_email.errors }}
+  </p>
+  <p>
+    <label for="{{ header_form.job_reference.id_for_label }}">{{ header_form.job_reference.label }}</label>
+    {{ header_form.job_reference }}
+    {{ header_form.job_reference.errors }}
+  </p>
+  <p>
+    <label for="{{ header_form.notes.id_for_label }}">{{ header_form.notes.label }}</label>
+    {{ header_form.notes }}
+    {{ header_form.notes.errors }}
+  </p>
+
+  <h2>Items going out</h2>
+  <p class="muted">Fill in as many rows as you need; leave the rest blank.</p>
+  {{ formset.non_form_errors }}
+  {{ formset.management_form }}
+  <table class="inventory-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Qty</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line_form in formset %}
+      <tr class="shipment-line">
+        <td data-label="Item">
+          {{ line_form.item }}
+          {{ line_form.item.errors }}
+        </td>
+        <td data-label="Qty">
+          {{ line_form.quantity_shipped }}
+          <span class="muted" data-stock-hint></span>
+          {{ line_form.quantity_shipped.errors }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <button type="submit" class="primary">Review shipment</button>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+  document.querySelectorAll(".shipment-line").forEach(function (row) {
+    var itemSelect = row.querySelector('select[name$="-item"]');
+    var qtyInput = row.querySelector('input[name$="-quantity_shipped"]');
+    var hint = row.querySelector("[data-stock-hint]");
+    if (!itemSelect || !qtyInput || !hint) return;
+
+    function update() {
+      var option = itemSelect.options[itemSelect.selectedIndex];
+      var onHand = option ? option.getAttribute("data-quantity") : null;
+      if (!onHand) {
+        hint.textContent = "";
+        qtyInput.removeAttribute("max");
+        return;
+      }
+      qtyInput.max = onHand;
+      hint.textContent = (qtyInput.value || 0) + " of " + onHand + " total";
+    }
+
+    itemSelect.addEventListener("change", update);
+    qtyInput.addEventListener("input", update);
+    update();
+  });
+</script>
+{% endblock %}

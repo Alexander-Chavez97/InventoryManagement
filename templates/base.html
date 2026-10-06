@@ -16,6 +16,7 @@
       <nav>
         <a href="{% url 'inventory:item_list' %}">Search</a>
         <a href="{% url 'inventory:intake' %}">Scanner intake</a>
+        <a href="{% url 'inventory:shipment_list' %}">Shipments</a>
         <a href="{% url 'password_change' %}">Change password</a>
         {% if user.is_staff %}
         <a href="{% url 'admin:index' %}">Admin</a>

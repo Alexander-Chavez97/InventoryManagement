@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Shipment #{{ shipment.pk }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'inventory:shipment_list' %}">← All shipments</a></p>
+<section class="card">
+  <p class="eyebrow">Shipment #{{ shipment.pk }}</p>
+  <h1>To {{ shipment.client_name }}</h1>
+  <dl class="meta">
+    <div>
+      <dt>Email</dt>
+      <dd>{{ shipment.client_email }}</dd>
+    </div>
+    {% if shipment.job_reference %}
+    <div>
+      <dt>Job reference</dt>
+      <dd>{{ shipment.job_reference }}</dd>
+    </div>
+    {% endif %}
+    <div>
+      <dt>Sent by</dt>
+      <dd>{{ shipment.created_by|default:"Unknown" }}</dd>
+    </div>
+    <div>
+      <dt>Date</dt>
+      <dd>{{ shipment.created_at }}</dd>
+    </div>
+    <div>
+      <dt>Email status</dt>
+      <dd>
+        {% if shipment.email_delivered %}
+        <span class="badge status-active">Sent {{ shipment.email_sent_at }}</span>
+        {% else %}
+        <span class="badge status-review">Not sent</span>
+        {% endif %}
+      </dd>
+    </div>
+  </dl>
+  {% if shipment.notes %}<p><strong>Notes:</strong> {{ shipment.notes }}</p>{% endif %}
+
+  {% if not shipment.email_delivered %}
+  <form method="post" action="{% url 'inventory:shipment_resend_email' shipment.pk %}">
+    {% csrf_token %}
+    <button type="submit" class="secondary">Resend email</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Items shipped</h2>
+  <table class="inventory-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Category</th>
+        <th>Qty</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in shipment.lines.all %}
+      <tr>
+        <td data-label="Item">
+          <a href="{% url 'inventory:item_detail' line.item.pk %}" class="mono">{{ line.item.serial_number }}</a>
+        </td>
+        <td data-label="Category">{{ line.item.category_path }}</td>
+        <td data-label="Qty">{{ line.quantity_shipped }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
