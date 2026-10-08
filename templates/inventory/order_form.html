@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}New shipment{% endblock %}
+{% block title %}New order{% endblock %}
 {% block content %}
 <section class="hero">
   <div>
-    <h1>New outbound shipment</h1>
+    <h1>New outbound order</h1>
     <p class="muted">Say who it's going to, add what's going out, then review before anything changes.</p>
   </div>
 </section>
@@ -45,7 +45,7 @@
     </thead>
     <tbody>
       {% for line_form in formset %}
-      <tr class="shipment-line">
+      <tr class="order-line">
         <td data-label="Item">
           {{ line_form.item }}
           {{ line_form.item.errors }}
@@ -60,12 +60,12 @@
     </tbody>
   </table>
 
-  <button type="submit" class="primary">Review shipment</button>
+  <button type="submit" class="primary">Review order</button>
 </form>
 {% endblock %}
 {% block extra_js %}
 <script>
-  document.querySelectorAll(".shipment-line").forEach(function (row) {
+  document.querySelectorAll(".order-line").forEach(function (row) {
     var itemSelect = row.querySelector('select[name$="-item"]');
     var qtyInput = row.querySelector('input[name$="-quantity_shipped"]');
     var hint = row.querySelector("[data-stock-hint]");

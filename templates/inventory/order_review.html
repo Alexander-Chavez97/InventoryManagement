@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Review shipment{% endblock %}
+{% block title %}Review order{% endblock %}
 {% block content %}
 <section class="card">
   <p class="eyebrow">Review -- nothing has happened yet</p>
-  <h1>Confirm this shipment?</h1>
+  <h1>Confirm this order?</h1>
   <p class="muted">
     Confirming will deduct these quantities from inventory and email
     <strong>{{ client_email }}</strong> a notice of what shipped. Nothing is
@@ -40,7 +40,7 @@
     <tbody>
       {% for item, qty, remaining in lines %}
       <tr>
-        <td data-label="Item" class="mono">{{ item.serial_number }}</td>
+        <td data-label="Item" class="mono">{{ item.model_name }}</td>
         <td data-label="Category">{{ item.category_path }}</td>
         <td data-label="Qty shipping">{{ qty }}</td>
         <td data-label="Remaining after">{{ remaining }}</td>
@@ -50,8 +50,8 @@
   </table>
 
   <div class="scan-actions">
-    <a class="secondary" href="{% url 'inventory:shipment_new' %}">Edit instead</a>
-    <form method="post" action="{% url 'inventory:shipment_new' %}">
+    <a class="secondary" href="{% url 'inventory:order_new' %}">Edit instead</a>
+    <form method="post" action="{% url 'inventory:order_new' %}">
       {% csrf_token %}
       {% for key, value in hidden_fields %}
       <input type="hidden" name="{{ key }}" value="{{ value }}" />

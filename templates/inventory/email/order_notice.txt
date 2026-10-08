@@ -1,0 +1,9 @@
+Hi {{ order.client_name }},
+
+Here's what shipped{% if order.job_reference %} for {{ order.job_reference }}{% endif %} on {{ order.created_at|date:"N j, Y" }}:
+
+{% for line in lines %}- {{ line.quantity_shipped }} x | Model: {{ line.item.model_name }}
+{% endfor %}
+{% if order.notes %}
+Notes: {{ order.notes }}
+{% endif %}

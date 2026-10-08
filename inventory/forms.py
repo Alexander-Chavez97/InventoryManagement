@@ -3,7 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.urls import reverse_lazy
 
-from .models import Category, Item, ItemPhoto, Shipment, Subcategory, SubSubcategory
+from .models import Category, Item, ItemPhoto, Order, Subcategory, SubSubcategory
 
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
@@ -47,21 +47,24 @@ class ScannerIntakeForm(forms.ModelForm):
 
     class Meta:
         model = Item
-        fields = ["serial_number", "quantity", "category", "subcategory", "subsubcategory", "status", "location", "notes"]
+        fields = ["model_name", "quantity", "price", "category", "subcategory", "subsubcategory", "status", "location", "notes"]
         labels = {
+            "model_name": "Model name",
             "subsubcategory": "Sub-subcategory",
         }
         widgets = {
-            "serial_number": forms.TextInput(
+            "model_name": forms.TextInput(
                 attrs={
                     "autofocus": True,
                     "autocomplete": "off",
                     "inputmode": "text",
-                    "placeholder": "Scan barcode or type serial",
+                    "placeholder": "Scan barcode or type model name",
                     "class": "scan-input",
+                    "list": "model-name-suggestions",
                 }
             ),
             "quantity": forms.NumberInput(attrs={"min": 0, "inputmode": "numeric"}),
+            "price": forms.NumberInput(attrs={"min": 0, "step": "0.01", "placeholder": "Optional"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
@@ -109,8 +112,11 @@ class ScannerIntakeForm(forms.ModelForm):
                 subcategory_id=subcategory_id
             ).order_by("name")
 
-    def clean_serial_number(self):
-        return self.cleaned_data["serial_number"].strip()
+    def clean_model_name(self):
+        # Normalized to uppercase so the catalog doesn't end up with
+        # look-alike duplicates that only differ by case (e.g. "xe43-gen3"
+        # vs "XE43-GEN3").
+        return self.cleaned_data["model_name"].strip().upper()
 
     def clean(self):
         cleaned = super().clean()
@@ -127,11 +133,46 @@ class ScannerIntakeForm(forms.ModelForm):
 class StatusChangeForm(forms.ModelForm):
     class Meta:
         model = Item
-        fields = ["quantity", "status", "location", "notes"]
+        fields = ["quantity", "price", "status", "location", "notes"]
         widgets = {
             "quantity": forms.NumberInput(attrs={"min": 0, "inputmode": "numeric"}),
+            "price": forms.NumberInput(attrs={"min": 0, "step": "0.01", "placeholder": "Optional"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
+
+
+class SplitStatusForm(forms.Form):
+    """Move some (not necessarily all) of an item's quantity to a different
+    status -- e.g. 1 of 5 goes to "For Parts" while the other 4 stay
+    "Active". The moved quantity either joins an existing lot that already
+    matches (same model/category/status/location) or starts a new one."""
+
+    quantity = forms.IntegerField(min_value=1, label="How many")
+    status = forms.ChoiceField(choices=Item.STATUS_CHOICES, label="New status")
+
+    def __init__(self, *args, item=None, **kwargs):
+        self.item = item
+        super().__init__(*args, **kwargs)
+        if item is not None:
+            self.fields["status"].choices = [
+                (code, label) for code, label in Item.STATUS_CHOICES if code != item.status
+            ]
+
+    def clean_status(self):
+        status = self.cleaned_data["status"]
+        if self.item is not None and status == self.item.status:
+            raise forms.ValidationError(
+                f"Already {self.item.get_status_display()} -- pick a different status to move some of it there."
+            )
+        return status
+
+    def clean_quantity(self):
+        quantity = self.cleaned_data["quantity"]
+        if self.item is not None and quantity > self.item.quantity:
+            raise forms.ValidationError(
+                f"Only {self.item.quantity} on hand -- can't move {quantity}."
+            )
+        return quantity
 
 
 class ItemPhotoForm(forms.Form):
@@ -152,7 +193,7 @@ class ItemFilterForm(forms.Form):
         required=False,
         widget=forms.TextInput(
             attrs={
-                "placeholder": "Search serial number",
+                "placeholder": "Search model name",
                 "autocomplete": "off",
                 "class": "scan-input",
             }
@@ -178,9 +219,9 @@ class StaffUserCreationForm(UserCreationForm):
         fields = ("username", "first_name", "last_name", "email")
 
 
-class ShipmentHeaderForm(forms.ModelForm):
+class OrderHeaderForm(forms.ModelForm):
     class Meta:
-        model = Shipment
+        model = Order
         fields = ["client_name", "client_email", "job_reference", "notes"]
         labels = {
             "client_name": "Client name",
@@ -188,7 +229,7 @@ class ShipmentHeaderForm(forms.ModelForm):
         }
         widgets = {
             "client_name": forms.TextInput(attrs={"placeholder": "Who this is going to"}),
-            "client_email": forms.EmailInput(attrs={"placeholder": "Where to send the shipment notice"}),
+            "client_email": forms.EmailInput(attrs={"placeholder": "Where to send the order notice"}),
             "job_reference": forms.TextInput(attrs={"placeholder": "PO number, job name, etc. (optional)"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
@@ -216,13 +257,13 @@ class ItemQuantitySelect(forms.Select):
         return option
 
 
-class ShipmentLineForm(forms.Form):
+class OrderLineForm(forms.Form):
     """One row: an item and how much of it is going out. An entirely blank
     row (no item picked) is treated as unused, not an error -- this lets the
     formset always render a handful of spare rows."""
 
     item = forms.ModelChoiceField(
-        queryset=Item.objects.filter(quantity__gt=0).order_by("serial_number"),
+        queryset=Item.objects.filter(quantity__gt=0).order_by("model_name"),
         required=False,
         empty_label="Select an item…",
         widget=ItemQuantitySelect,
@@ -262,12 +303,12 @@ class ShipmentLineForm(forms.Form):
         if quantity_shipped > item.quantity:
             self.add_error(
                 "quantity_shipped",
-                f"Only {item.quantity} on hand for {item.serial_number} -- can't ship {quantity_shipped}.",
+                f"Only {item.quantity} on hand for {item.model_name} -- can't ship {quantity_shipped}.",
             )
         return cleaned
 
 
-class BaseShipmentLineFormSet(forms.BaseFormSet):
+class BaseOrderLineFormSet(forms.BaseFormSet):
     def clean(self):
         super().clean()
         if any(self.errors):
@@ -285,18 +326,18 @@ class BaseShipmentLineFormSet(forms.BaseFormSet):
             if item.pk in seen_item_ids:
                 form.add_error(
                     "item",
-                    "This item is already on another line in this shipment -- "
+                    "This item is already on another line in this order -- "
                     "combine them into a single line instead.",
                 )
             seen_item_ids.add(item.pk)
 
         if not has_at_least_one_line:
-            raise forms.ValidationError("Add at least one item to the shipment.")
+            raise forms.ValidationError("Add at least one item to the order.")
 
 
-ShipmentLineFormSet = forms.formset_factory(
-    ShipmentLineForm,
-    formset=BaseShipmentLineFormSet,
+OrderLineFormSet = forms.formset_factory(
+    OrderLineForm,
+    formset=BaseOrderLineFormSet,
     extra=8,
     can_delete=True,
 )

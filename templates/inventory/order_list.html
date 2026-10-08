@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Shipments{% endblock %}
+{% block title %}Orders{% endblock %}
 {% block content %}
 <section class="hero">
   <div>
-    <h1>Outbound shipments</h1>
+    <h1>Orders</h1>
     <p class="muted">Everything sent out to clients/jobs so far.</p>
   </div>
-  <a class="primary" href="{% url 'inventory:shipment_new' %}">New shipment</a>
+  <a class="primary" href="{% url 'inventory:order_new' %}">New order</a>
 </section>
 
-{% if shipments %}
+{% if orders %}
 <table class="inventory-table">
   <thead>
     <tr>
@@ -21,14 +21,14 @@
     </tr>
   </thead>
   <tbody>
-    {% for shipment in shipments %}
+    {% for order in orders %}
     <tr>
-      <td data-label="Date"><a href="{% url 'inventory:shipment_detail' shipment.pk %}">{{ shipment.created_at }}</a></td>
-      <td data-label="Client">{{ shipment.client_name }}</td>
-      <td data-label="Job reference">{{ shipment.job_reference|default:"—" }}</td>
-      <td data-label="Items">{{ shipment.lines.all|length }}</td>
+      <td data-label="Date"><a href="{% url 'inventory:order_detail' order.pk %}">{{ order.created_at }}</a></td>
+      <td data-label="Client">{{ order.client_name }}</td>
+      <td data-label="Job reference">{{ order.job_reference|default:"—" }}</td>
+      <td data-label="Items">{{ order.lines.all|length }}</td>
       <td data-label="Email">
-        {% if shipment.email_delivered %}
+        {% if order.email_delivered %}
         <span class="badge status-active">Sent</span>
         {% else %}
         <span class="badge status-review">Not sent</span>
@@ -39,6 +39,6 @@
   </tbody>
 </table>
 {% else %}
-<p class="empty">No shipments yet.</p>
+<p class="empty">No orders yet.</p>
 {% endif %}
 {% endblock %}

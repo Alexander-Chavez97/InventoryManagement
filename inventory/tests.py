@@ -10,12 +10,22 @@ from PIL import Image
 from rest_framework.test import APIClient
 
 from .forms import ItemFilterForm, ScannerIntakeForm
-from .models import Category, Item, Location, Shipment, Subcategory, SubSubcategory
+from .models import (
+    Category,
+    Item,
+    ItemPhoto,
+    Location,
+    MAX_PHOTO_DIMENSION,
+    ModelCatalog,
+    Order,
+    Subcategory,
+    SubSubcategory,
+)
 
 
-def jpeg_file(name="shot.jpg"):
+def jpeg_file(name="shot.jpg", size=(20, 20)):
     buffer = BytesIO()
-    Image.new("RGB", (20, 20), "orange").save(buffer, format="JPEG")
+    Image.new("RGB", size, "orange").save(buffer, format="JPEG")
     return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
 
 
@@ -42,7 +52,7 @@ class InventoryFlowTests(TestCase):
         response = self.client.post(
             reverse("inventory:intake"),
             {
-                "serial_number": "847291",
+                "model_name": "847291",
                 "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
@@ -52,7 +62,7 @@ class InventoryFlowTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        item = Item.objects.get(serial_number="847291")
+        item = Item.objects.get(model_name="847291")
         self.assertEqual(item.display_name, "847291.RadioCommunication.ForParts")
         self.assertEqual(item.status_history.count(), 1)
         self.assertEqual(item.status_history.first().changed_by, self.user)
@@ -61,7 +71,7 @@ class InventoryFlowTests(TestCase):
         response = self.client.post(
             reverse("inventory:intake"),
             {
-                "serial_number": "QTY1",
+                "model_name": "QTY1",
                 "quantity": 5,
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
@@ -71,14 +81,14 @@ class InventoryFlowTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        item = Item.objects.get(serial_number="QTY1")
+        item = Item.objects.get(model_name="QTY1")
         self.assertEqual(item.quantity, 5)
 
     def test_intake_saves_photos(self):
         response = self.client.post(
             reverse("inventory:intake"),
             {
-                "serial_number": "PHOTO1",
+                "model_name": "PHOTO1",
                 "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
@@ -88,11 +98,11 @@ class InventoryFlowTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        item = Item.objects.get(serial_number="PHOTO1")
+        item = Item.objects.get(model_name="PHOTO1")
         self.assertEqual(item.photos.count(), 2)
 
     def test_detail_accepts_more_photos(self):
-        item = Item.objects.create(serial_number="PHOTO2", item_type="VEHICLE", status="ACTIVE")
+        item = Item.objects.create(model_name="PHOTO2", item_type="VEHICLE", status="ACTIVE")
         response = self.client.post(
             reverse("inventory:item_detail", args=[item.pk]),
             {
@@ -106,34 +116,34 @@ class InventoryFlowTests(TestCase):
         self.assertEqual(item.photos.first().kind, "BARCODE")
 
     def test_list_filters_by_status(self):
-        Item.objects.create(serial_number="A1", item_type="VEHICLE", status="ACTIVE")
-        Item.objects.create(serial_number="B2", item_type="RADIO", status="REVIEW")
+        Item.objects.create(model_name="A1", item_type="VEHICLE", status="ACTIVE")
+        Item.objects.create(model_name="B2", item_type="RADIO", status="REVIEW")
         response = self.client.get(reverse("inventory:item_list"), {"status": "ACTIVE"})
         self.assertContains(response, "A1")
         self.assertNotContains(response, "B2")
 
     def test_list_hides_out_of_stock_items_by_default(self):
-        Item.objects.create(serial_number="INSTOCK1", item_type="VEHICLE", status="ACTIVE", quantity=3)
-        Item.objects.create(serial_number="EMPTY1", item_type="VEHICLE", status="ACTIVE", quantity=0)
+        Item.objects.create(model_name="INSTOCK1", item_type="VEHICLE", status="ACTIVE", quantity=3)
+        Item.objects.create(model_name="EMPTY1", item_type="VEHICLE", status="ACTIVE", quantity=0)
         response = self.client.get(reverse("inventory:item_list"))
         self.assertContains(response, "INSTOCK1")
         self.assertNotContains(response, "EMPTY1")
 
     def test_list_shows_out_of_stock_items_when_requested(self):
-        Item.objects.create(serial_number="EMPTY2", item_type="VEHICLE", status="ACTIVE", quantity=0)
+        Item.objects.create(model_name="EMPTY2", item_type="VEHICLE", status="ACTIVE", quantity=0)
         response = self.client.get(reverse("inventory:item_list"), {"include_out_of_stock": "on"})
         self.assertContains(response, "EMPTY2")
 
     def test_total_count_follows_out_of_stock_toggle(self):
-        Item.objects.create(serial_number="INSTOCK2", item_type="VEHICLE", status="ACTIVE", quantity=3)
-        Item.objects.create(serial_number="EMPTY3", item_type="VEHICLE", status="ACTIVE", quantity=0)
+        Item.objects.create(model_name="INSTOCK2", item_type="VEHICLE", status="ACTIVE", quantity=3)
+        Item.objects.create(model_name="EMPTY3", item_type="VEHICLE", status="ACTIVE", quantity=0)
         response = self.client.get(reverse("inventory:item_list"))
         self.assertEqual(response.context["counts"]["total"], 1)
         response = self.client.get(reverse("inventory:item_list"), {"include_out_of_stock": "on"})
         self.assertEqual(response.context["counts"]["total"], 2)
 
     def test_status_change_writes_history(self):
-        item = Item.objects.create(serial_number="C3", item_type="RADIO", status="REVIEW")
+        item = Item.objects.create(model_name="C3", item_type="RADIO", status="REVIEW")
         response = self.client.post(
             reverse("inventory:item_detail", args=[item.pk]),
             {"quantity": 1, "status": "ACTIVE", "notes": "Ready for service"},
@@ -144,7 +154,7 @@ class InventoryFlowTests(TestCase):
         self.assertEqual(item.status_history.count(), 2)
 
     def test_quantity_defaults_to_one_and_is_editable_from_item_detail(self):
-        item = Item.objects.create(serial_number="C4", item_type="RADIO", status="REVIEW")
+        item = Item.objects.create(model_name="C4", item_type="RADIO", status="REVIEW")
         self.assertEqual(item.quantity, 1)
         response = self.client.post(
             reverse("inventory:item_detail", args=[item.pk]),
@@ -155,7 +165,7 @@ class InventoryFlowTests(TestCase):
         self.assertEqual(item.quantity, 7)
 
     def test_quantity_cannot_be_negative(self):
-        item = Item.objects.create(serial_number="C5", item_type="RADIO", status="REVIEW")
+        item = Item.objects.create(model_name="C5", item_type="RADIO", status="REVIEW")
         response = self.client.post(
             reverse("inventory:item_detail", args=[item.pk]),
             {"quantity": -3, "status": "REVIEW", "notes": ""},
@@ -174,32 +184,32 @@ class InventoryFlowTests(TestCase):
 
 class ItemModelTests(TestCase):
     def test_display_name_strips_spaces_from_choice_labels(self):
-        item = Item.objects.create(serial_number="D1", item_type="VEHICLE", status="REPAIR")
+        item = Item.objects.create(model_name="D1", item_type="VEHICLE", status="REPAIR")
         self.assertEqual(item.display_name, "D1.Vehicle.PendingRepair")
 
     def test_display_name_prefers_the_new_category_over_legacy_item_type(self):
         _, _, ssc = make_category_chain(
             category="Video Surveillance", subcategory="IP Cameras", subsubcategory="Dome"
         )
-        item = Item.objects.create(serial_number="D0", subsubcategory=ssc, status="ACTIVE")
+        item = Item.objects.create(model_name="D0", subsubcategory=ssc, status="ACTIVE")
         self.assertEqual(item.display_name, "D0.VideoSurveillance.Active")
         self.assertEqual(item.category_path, "Video Surveillance → IP Cameras → Dome")
 
     def test_creating_an_item_writes_one_history_entry(self):
-        item = Item.objects.create(serial_number="D2", item_type="CAMERA", status="REVIEW")
+        item = Item.objects.create(model_name="D2", item_type="CAMERA", status="REVIEW")
         self.assertEqual(item.status_history.count(), 1)
         entry = item.status_history.first()
         self.assertEqual(entry.old_status, "")
         self.assertEqual(entry.new_status, "REVIEW")
 
     def test_saving_without_a_status_change_does_not_add_history(self):
-        item = Item.objects.create(serial_number="D3", item_type="CAMERA", status="ACTIVE")
+        item = Item.objects.create(model_name="D3", item_type="CAMERA", status="ACTIVE")
         item.notes = "Recalibrated the lens"
         item.save()
         self.assertEqual(item.status_history.count(), 1)
 
     def test_changing_status_appends_history_without_removing_old_entries(self):
-        item = Item.objects.create(serial_number="D4", item_type="RADIO", status="REVIEW")
+        item = Item.objects.create(model_name="D4", item_type="RADIO", status="REVIEW")
         item.status = "ACTIVE"
         item.save()
         item.status = "PARTS"
@@ -213,10 +223,12 @@ class ItemModelTests(TestCase):
             [("", "REVIEW"), ("REVIEW", "ACTIVE"), ("ACTIVE", "PARTS")],
         )
 
-    def test_serial_number_must_be_unique(self):
-        Item.objects.create(serial_number="DUP", item_type="RADIO", status="ACTIVE")
-        with self.assertRaises(IntegrityError):
-            Item.objects.create(serial_number="DUP", item_type="CAMERA", status="ACTIVE")
+    def test_multiple_items_can_share_a_model_name(self):
+        # Model name is a product identifier, not a per-unit serial -- many
+        # physical units legitimately share one (quantity tracks how many).
+        Item.objects.create(model_name="XE43-GEN3", item_type="RADIO", status="ACTIVE")
+        Item.objects.create(model_name="XE43-GEN3", item_type="CAMERA", status="ACTIVE")
+        self.assertEqual(Item.objects.filter(model_name="XE43-GEN3").count(), 2)
 
     def test_location_str_skips_blank_parts(self):
         location = Location.objects.create(building="Warehouse A", aisle="", shelf="3", bin="")
@@ -245,7 +257,7 @@ class FormTests(TestCase):
     def test_scanner_intake_form_strips_serial_whitespace(self):
         form = ScannerIntakeForm(
             data={
-                "serial_number": "  123456  ",
+                "model_name": "  123456  ",
                 "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
@@ -255,14 +267,14 @@ class FormTests(TestCase):
             }
         )
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data["serial_number"], "123456")
+        self.assertEqual(form.cleaned_data["model_name"], "123456")
 
     def test_scanner_intake_form_rejects_a_subcategory_from_another_category(self):
         other_category = Category.objects.create(name="Networking")
         other_subcategory = Subcategory.objects.create(category=other_category, name="Antennas")
         form = ScannerIntakeForm(
             data={
-                "serial_number": "999999",
+                "model_name": "999999",
                 "quantity": 1,
                 "category": self.category.pk,
                 "subcategory": other_subcategory.pk,
@@ -285,7 +297,7 @@ class PaginationTests(TestCase):
         self.user = User.objects.create_user("alex", password="test-pass-123")
         self.client.login(username="alex", password="test-pass-123")
         for i in range(30):
-            Item.objects.create(serial_number=f"P{i:03d}", item_type="RADIO", status="ACTIVE")
+            Item.objects.create(model_name=f"P{i:03d}", item_type="RADIO", status="ACTIVE")
 
     def test_first_page_shows_25_items_with_a_next_link(self):
         response = self.client.get(reverse("inventory:item_list"))
@@ -302,7 +314,7 @@ class PaginationTests(TestCase):
 
     def test_pagination_controls_are_hidden_for_a_single_page(self):
         Item.objects.all().delete()
-        Item.objects.create(serial_number="ONLY1", item_type="RADIO", status="ACTIVE")
+        Item.objects.create(model_name="ONLY1", item_type="RADIO", status="ACTIVE")
         response = self.client.get(reverse("inventory:item_list"))
         self.assertNotContains(response, "pagination")
 
@@ -311,7 +323,7 @@ class QuickStatusTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("alex", password="test-pass-123")
         self.client.login(username="alex", password="test-pass-123")
-        self.item = Item.objects.create(serial_number="Q1", item_type="RADIO", status="REVIEW")
+        self.item = Item.objects.create(model_name="Q1", item_type="RADIO", status="REVIEW")
 
     def test_valid_status_change_updates_the_item(self):
         response = self.client.post(
@@ -433,8 +445,8 @@ class ApiTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("alex", password="test-pass-123")
         self.client = APIClient()
-        self.active = Item.objects.create(serial_number="API1", item_type="CAMERA", status="ACTIVE")
-        Item.objects.create(serial_number="API2", item_type="RADIO", status="REVIEW")
+        self.active = Item.objects.create(model_name="API1", item_type="CAMERA", status="ACTIVE")
+        Item.objects.create(model_name="API2", item_type="RADIO", status="REVIEW")
 
     def test_anonymous_requests_are_rejected(self):
         response = self.client.get("/api/items/")
@@ -444,13 +456,15 @@ class ApiTests(TestCase):
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/items/")
         self.assertEqual(response.status_code, 200)
-        serials = {row["serial_number"] for row in response.data}
+        # Paginated response ({"count", "next", "previous", "results"}), not
+        # a bare list -- see DEFAULT_PAGINATION_CLASS in REST_FRAMEWORK.
+        serials = {row["model_name"] for row in response.data["results"]}
         self.assertEqual(serials, {"API1", "API2"})
 
     def test_filtering_by_status(self):
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/items/", {"status": "ACTIVE"})
-        serials = [row["serial_number"] for row in response.data]
+        serials = [row["model_name"] for row in response.data["results"]]
         self.assertEqual(serials, ["API1"])
 
     def test_detail_endpoint_includes_display_fields(self):
@@ -497,7 +511,7 @@ class LoginLockoutTests(TestCase):
         self.assertFalse(response.wsgi_request.user.is_authenticated)
 
 
-def _shipment_formset_data(lines, total=8):
+def _order_formset_data(lines, total=8):
     """Build the `line-...` formset POST fields for a list of (item, qty)
     tuples, padding the rest of the formset out to `total` blank rows."""
     data = {
@@ -517,13 +531,13 @@ def _shipment_formset_data(lines, total=8):
     return data
 
 
-class ShipmentTests(TestCase):
+class OrderTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("alex", password="test-pass-123")
         self.client.login(username="alex", password="test-pass-123")
         cat, sub, ssc = make_category_chain()
         self.item = Item.objects.create(
-            serial_number="SHIP1", subsubcategory=ssc, status="ACTIVE", quantity=10
+            model_name="SHIP1", subsubcategory=ssc, status="ACTIVE", quantity=10
         )
 
     def _header_data(self, **overrides):
@@ -537,35 +551,35 @@ class ShipmentTests(TestCase):
         return data
 
     def test_preview_does_not_touch_inventory_or_send_email(self):
-        data = {**self._header_data(), **_shipment_formset_data([(self.item, 3)])}
-        response = self.client.post(reverse("inventory:shipment_new"), data)
+        data = {**self._header_data(), **_order_formset_data([(self.item, 3)])}
+        response = self.client.post(reverse("inventory:order_new"), data)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Confirm this shipment?")
+        self.assertContains(response, "Confirm this order?")
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, 10)
-        self.assertEqual(Shipment.objects.count(), 0)
+        self.assertEqual(Order.objects.count(), 0)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_confirm_decrements_inventory_creates_shipment_and_emails_client(self):
+    def test_confirm_decrements_inventory_creates_order_and_emails_client(self):
         data = {
             **self._header_data(),
-            **_shipment_formset_data([(self.item, 3)]),
+            **_order_formset_data([(self.item, 3)]),
             "confirm": "1",
         }
-        response = self.client.post(reverse("inventory:shipment_new"), data)
+        response = self.client.post(reverse("inventory:order_new"), data)
         self.assertEqual(response.status_code, 302)
 
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, 7)
 
-        shipment = Shipment.objects.get()
-        self.assertEqual(shipment.client_name, "Acme Corp")
-        self.assertEqual(shipment.client_email, "acme@example.com")
-        self.assertEqual(shipment.job_reference, "PO-100")
-        self.assertEqual(shipment.created_by, self.user)
-        self.assertEqual(shipment.lines.count(), 1)
-        self.assertEqual(shipment.lines.get().quantity_shipped, 3)
-        self.assertIsNotNone(shipment.email_sent_at)
+        order = Order.objects.get()
+        self.assertEqual(order.client_name, "Acme Corp")
+        self.assertEqual(order.client_email, "acme@example.com")
+        self.assertEqual(order.job_reference, "PO-100")
+        self.assertEqual(order.created_by, self.user)
+        self.assertEqual(order.lines.count(), 1)
+        self.assertEqual(order.lines.get().quantity_shipped, 3)
+        self.assertIsNotNone(order.email_sent_at)
 
         self.assertEqual(len(mail.outbox), 1)
         sent = mail.outbox[0]
@@ -576,40 +590,275 @@ class ShipmentTests(TestCase):
     def test_cannot_ship_more_than_on_hand(self):
         data = {
             **self._header_data(),
-            **_shipment_formset_data([(self.item, 11)]),  # only 10 on hand
+            **_order_formset_data([(self.item, 11)]),  # only 10 on hand
             "confirm": "1",
         }
-        response = self.client.post(reverse("inventory:shipment_new"), data)
+        response = self.client.post(reverse("inventory:order_new"), data)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Only 10 on hand")
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, 10)
-        self.assertEqual(Shipment.objects.count(), 0)
+        self.assertEqual(Order.objects.count(), 0)
         self.assertEqual(len(mail.outbox), 0)
 
     def test_same_item_on_two_lines_is_rejected(self):
         data = {
             **self._header_data(),
-            **_shipment_formset_data([(self.item, 2), (self.item, 1)]),
+            **_order_formset_data([(self.item, 2), (self.item, 1)]),
         }
-        response = self.client.post(reverse("inventory:shipment_new"), data)
+        response = self.client.post(reverse("inventory:order_new"), data)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already on another line")
-        self.assertEqual(Shipment.objects.count(), 0)
+        self.assertEqual(Order.objects.count(), 0)
 
-    def test_shipment_requires_at_least_one_line(self):
-        data = {**self._header_data(), **_shipment_formset_data([])}
-        response = self.client.post(reverse("inventory:shipment_new"), data)
+    def test_order_requires_at_least_one_line(self):
+        data = {**self._header_data(), **_order_formset_data([])}
+        response = self.client.post(reverse("inventory:order_new"), data)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Add at least one item")
 
-    def test_item_detail_shows_shipment_history(self):
+    def test_item_detail_shows_order_history(self):
         data = {
             **self._header_data(),
-            **_shipment_formset_data([(self.item, 4)]),
+            **_order_formset_data([(self.item, 4)]),
             "confirm": "1",
         }
-        self.client.post(reverse("inventory:shipment_new"), data)
+        self.client.post(reverse("inventory:order_new"), data)
         response = self.client.get(reverse("inventory:item_detail", args=[self.item.pk]))
         self.assertContains(response, "4 sent to")
         self.assertContains(response, "Acme")
+
+
+class ModelCatalogTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="test-pass-123")
+        self.client.login(username="alex", password="test-pass-123")
+        self.category, self.subcategory, self.subsubcategory = make_category_chain()
+
+    def _intake(self, model_name):
+        return self.client.post(
+            reverse("inventory:intake"),
+            {
+                "model_name": model_name,
+                "quantity": 1,
+                "category": self.category.pk,
+                "subcategory": self.subcategory.pk,
+                "subsubcategory": self.subsubcategory.pk,
+                "status": "ACTIVE",
+                "notes": "",
+            },
+        )
+
+    def test_a_name_matching_the_known_format_is_added_and_not_flagged(self):
+        self._intake("XQ99-GEN5")
+        entry = ModelCatalog.objects.get(name="XQ99-GEN5")
+        self.assertIsNotNone(entry.matched_pattern)
+        self.assertFalse(entry.needs_review)
+
+    def test_a_name_matching_no_known_format_is_still_recorded_but_flagged(self):
+        response = self._intake("12345")
+        self.assertEqual(response.status_code, 302)
+        entry = ModelCatalog.objects.get(name="12345")
+        self.assertIsNone(entry.matched_pattern)
+        self.assertTrue(entry.needs_review)
+        # The item itself was still recorded -- this is a warning, not a block.
+        self.assertTrue(Item.objects.filter(model_name="12345").exists())
+
+    def test_reusing_an_existing_model_name_does_not_duplicate_the_catalog_entry(self):
+        # Same model, category, status and location each time -- this also
+        # merges into a single Item lot (see IntakeMergeTests), so there's
+        # exactly one Item row as well as one catalog entry.
+        self._intake("xb41h")
+        self._intake("XB41H")
+        self.assertEqual(ModelCatalog.objects.filter(name__iexact="XB41H").count(), 1)
+        self.assertEqual(Item.objects.filter(model_name="XB41H").count(), 1)
+        self.assertEqual(Item.objects.get(model_name="XB41H").quantity, 2)
+
+    def test_model_name_is_normalized_to_uppercase(self):
+        self._intake("xe43-gen3")
+        self.assertTrue(Item.objects.filter(model_name="XE43-GEN3").exists())
+
+
+class IntakeMergeTests(TestCase):
+    """Intaking the same model/category/status/location twice should add to
+    the existing lot rather than creating a duplicate row; anything that
+    differs (status, in particular) should stay a separate lot."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="test-pass-123")
+        self.client.login(username="alex", password="test-pass-123")
+        self.category, self.subcategory, self.subsubcategory = make_category_chain()
+
+    def _intake(self, **overrides):
+        data = {
+            "model_name": "XB41H",
+            "quantity": 2,
+            "category": self.category.pk,
+            "subcategory": self.subcategory.pk,
+            "subsubcategory": self.subsubcategory.pk,
+            "status": "ACTIVE",
+            "notes": "",
+        }
+        data.update(overrides)
+        return self.client.post(reverse("inventory:intake"), data)
+
+    def test_matching_intake_adds_to_the_existing_lot(self):
+        self._intake(quantity=2)
+        self._intake(quantity=3)
+        self.assertEqual(Item.objects.filter(model_name="XB41H").count(), 1)
+        self.assertEqual(Item.objects.get(model_name="XB41H").quantity, 5)
+
+    def test_a_different_status_does_not_merge(self):
+        self._intake(quantity=2, status="ACTIVE")
+        self._intake(quantity=3, status="REVIEW")
+        self.assertEqual(Item.objects.filter(model_name="XB41H").count(), 2)
+        self.assertEqual(Item.objects.get(model_name="XB41H", status="ACTIVE").quantity, 2)
+        self.assertEqual(Item.objects.get(model_name="XB41H", status="REVIEW").quantity, 3)
+
+    def test_a_different_category_does_not_merge(self):
+        other_category, other_sub, other_ssc = make_category_chain(
+            category="Video Surveillance", subcategory="IP Cameras", subsubcategory="Dome"
+        )
+        self._intake(quantity=2)
+        self._intake(
+            quantity=3,
+            category=other_category.pk,
+            subcategory=other_sub.pk,
+            subsubcategory=other_ssc.pk,
+        )
+        self.assertEqual(Item.objects.filter(model_name="XB41H").count(), 2)
+
+    def test_merging_backfills_a_missing_price_but_does_not_overwrite_one(self):
+        self._intake(quantity=2, price="")
+        self._intake(quantity=1, price="19.99")
+        item = Item.objects.get(model_name="XB41H")
+        self.assertEqual(str(item.price), "19.99")
+
+        self._intake(quantity=1, price="999.00")
+        item.refresh_from_db()
+        # Price was already set -- the second price entered is ignored.
+        self.assertEqual(str(item.price), "19.99")
+        self.assertEqual(item.quantity, 4)
+
+    def test_photos_from_a_merged_intake_attach_to_the_existing_item(self):
+        self._intake(quantity=2)
+        item = Item.objects.get(model_name="XB41H")
+        response = self.client.post(
+            reverse("inventory:intake"),
+            {
+                "model_name": "XB41H",
+                "quantity": 1,
+                "category": self.category.pk,
+                "subcategory": self.subcategory.pk,
+                "subsubcategory": self.subsubcategory.pk,
+                "status": "ACTIVE",
+                "notes": "",
+                "photos": jpeg_file(),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.photos.count(), 1)
+
+
+class SplitStatusTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="test-pass-123")
+        self.client.login(username="alex", password="test-pass-123")
+        cat, sub, ssc = make_category_chain()
+        self.item = Item.objects.create(
+            model_name="XB41H", subsubcategory=ssc, status="ACTIVE", quantity=5
+        )
+
+    def test_moving_some_quantity_creates_a_new_lot_and_leaves_the_rest(self):
+        response = self.client.post(
+            reverse("inventory:item_split_status", args=[self.item.pk]),
+            {"quantity": 1, "status": "PARTS"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 4)
+        self.assertEqual(self.item.status, "ACTIVE")
+
+        new_lot = Item.objects.get(model_name="XB41H", status="PARTS")
+        self.assertEqual(new_lot.quantity, 1)
+        self.assertEqual(new_lot.subsubcategory_id, self.item.subsubcategory_id)
+
+    def test_moving_quantity_into_an_existing_matching_lot_merges(self):
+        Item.objects.create(
+            model_name="XB41H",
+            subsubcategory=self.item.subsubcategory,
+            status="PARTS",
+            quantity=2,
+        )
+        self.client.post(
+            reverse("inventory:item_split_status", args=[self.item.pk]),
+            {"quantity": 1, "status": "PARTS"},
+        )
+        self.assertEqual(Item.objects.filter(model_name="XB41H", status="PARTS").count(), 1)
+        self.assertEqual(Item.objects.get(model_name="XB41H", status="PARTS").quantity, 3)
+
+    def test_cannot_move_more_than_on_hand(self):
+        response = self.client.post(
+            reverse("inventory:item_split_status", args=[self.item.pk]),
+            {"quantity": 10, "status": "PARTS"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 5)
+        self.assertFalse(Item.objects.filter(model_name="XB41H", status="PARTS").exists())
+
+    def test_cannot_move_to_the_same_status(self):
+        response = self.client.post(
+            reverse("inventory:item_split_status", args=[self.item.pk]),
+            {"quantity": 1, "status": "ACTIVE"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 5)
+
+    def test_moving_all_of_it_leaves_the_source_at_zero(self):
+        self.client.post(
+            reverse("inventory:item_split_status", args=[self.item.pk]),
+            {"quantity": 5, "status": "PARTS"},
+        )
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 0)
+        self.assertEqual(Item.objects.get(model_name="XB41H", status="PARTS").quantity, 5)
+
+
+class ItemPhotoResizeTests(TestCase):
+    """A big phone-camera photo gets downscaled/recompressed on upload, so
+    item pages and the media folder don't keep growing proportional to
+    whatever resolution someone's phone happens to shoot at."""
+
+    def setUp(self):
+        cat, sub, subsub = make_category_chain()
+        self.item = Item.objects.create(
+            model_name="XB41H", subsubcategory=subsub, status="ACTIVE", quantity=1
+        )
+
+    def test_an_oversized_photo_is_downscaled(self):
+        photo = ItemPhoto.objects.create(
+            item=self.item,
+            image=jpeg_file("big.jpg", size=(3000, 2000)),
+        )
+        with Image.open(photo.image) as img:
+            self.assertLessEqual(max(img.size), MAX_PHOTO_DIMENSION)
+        # Aspect ratio is preserved, not squashed to a square.
+        with Image.open(photo.image) as img:
+            self.assertAlmostEqual(img.size[0] / img.size[1], 3000 / 2000, places=2)
+
+    def test_an_already_small_photo_is_left_at_its_own_size(self):
+        photo = ItemPhoto.objects.create(
+            item=self.item,
+            image=jpeg_file("small.jpg", size=(20, 20)),
+        )
+        with Image.open(photo.image) as img:
+            self.assertEqual(img.size, (20, 20))
+
+    def test_a_file_pillow_cannot_read_is_kept_as_is_rather_than_crashing(self):
+        bogus = SimpleUploadedFile("not-a-photo.jpg", b"this is not image data", content_type="image/jpeg")
+        photo = ItemPhoto.objects.create(item=self.item, image=bogus)
+        photo.image.open()
+        self.assertEqual(photo.image.read(), b"this is not image data")

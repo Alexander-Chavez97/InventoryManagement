@@ -42,3 +42,9 @@ zap.yaml
 zap_report.html
 # Scratch folder used when moving files that need manual deletion
 _to_delete/
+
+# Stray one-off files that have ended up in the project root -- never
+# commit these: a raw DB dump can carry real client/order data, and a
+# vendor catalog PDF isn't part of the app.
+/*.sql
+/*.pdf
