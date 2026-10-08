@@ -5,8 +5,10 @@ from .models import (
     Item,
     ItemPhoto,
     Location,
-    Shipment,
-    ShipmentLine,
+    ModelCatalog,
+    ModelNamePattern,
+    Order,
+    OrderLine,
     StatusHistory,
     Subcategory,
     SubSubcategory,
@@ -71,17 +73,18 @@ class ItemPhotoInline(admin.TabularInline):
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
     list_display = (
-        "serial_number",
+        "model_name",
         "quantity",
+        "price",
         "category_path",
         "status",
         "location",
         "updated_at",
         "display_name",
     )
-    list_editable = ("quantity",)
+    list_editable = ("quantity", "price")
     list_filter = ("status", "subsubcategory__subcategory__category", "item_type")
-    search_fields = ("serial_number", "notes")
+    search_fields = ("model_name", "notes")
     autocomplete_fields = ["subsubcategory"]
     inlines = [ItemPhotoInline, StatusHistoryInline]
     readonly_fields = ("created_at", "updated_at")
@@ -91,25 +94,44 @@ class ItemAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+@admin.register(ModelNamePattern)
+class ModelNamePatternAdmin(admin.ModelAdmin):
+    list_display = ("label", "regex", "example", "is_active")
+    list_editable = ("is_active",)
+    search_fields = ("label", "regex", "example")
+
+
+@admin.register(ModelCatalog)
+class ModelCatalogAdmin(admin.ModelAdmin):
+    list_display = ("name", "matched_pattern", "needs_review", "added_at")
+    list_filter = ("needs_review", "matched_pattern")
+    search_fields = ("name",)
+    actions = ["mark_reviewed"]
+
+    @admin.action(description="Mark selected as reviewed")
+    def mark_reviewed(self, request, queryset):
+        queryset.update(needs_review=False)
+
+
 @admin.register(StatusHistory)
 class StatusHistoryAdmin(admin.ModelAdmin):
     list_display = ("item", "old_status", "new_status", "changed_by", "changed_at")
     list_filter = ("new_status",)
-    search_fields = ("item__serial_number",)
+    search_fields = ("item__model_name",)
     readonly_fields = ("item", "old_status", "new_status", "changed_by", "changed_at")
 
 
-class ShipmentLineInline(admin.TabularInline):
-    model = ShipmentLine
+class OrderLineInline(admin.TabularInline):
+    model = OrderLine
     extra = 0
     autocomplete_fields = ["item"]
 
 
-@admin.register(Shipment)
-class ShipmentAdmin(admin.ModelAdmin):
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
     list_display = ("id", "client_name", "client_email", "job_reference", "created_by", "created_at", "email_delivered")
     search_fields = ("client_name", "client_email", "job_reference")
-    inlines = [ShipmentLineInline]
+    inlines = [OrderLineInline]
     readonly_fields = ("created_by", "created_at", "email_sent_at")
 
     @admin.display(boolean=True, description="Emailed")

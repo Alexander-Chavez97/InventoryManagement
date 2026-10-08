@@ -1,44 +1,44 @@
 {% extends "base.html" %}
-{% block title %}Shipment #{{ shipment.pk }}{% endblock %}
+{% block title %}Order #{{ order.pk }}{% endblock %}
 {% block content %}
-<p><a href="{% url 'inventory:shipment_list' %}">← All shipments</a></p>
+<p><a href="{% url 'inventory:order_list' %}">← All orders</a></p>
 <section class="card">
-  <p class="eyebrow">Shipment #{{ shipment.pk }}</p>
-  <h1>To {{ shipment.client_name }}</h1>
+  <p class="eyebrow">Order #{{ order.pk }}</p>
+  <h1>To {{ order.client_name }}</h1>
   <dl class="meta">
     <div>
       <dt>Email</dt>
-      <dd>{{ shipment.client_email }}</dd>
+      <dd>{{ order.client_email }}</dd>
     </div>
-    {% if shipment.job_reference %}
+    {% if order.job_reference %}
     <div>
       <dt>Job reference</dt>
-      <dd>{{ shipment.job_reference }}</dd>
+      <dd>{{ order.job_reference }}</dd>
     </div>
     {% endif %}
     <div>
       <dt>Sent by</dt>
-      <dd>{{ shipment.created_by|default:"Unknown" }}</dd>
+      <dd>{{ order.created_by|default:"Unknown" }}</dd>
     </div>
     <div>
       <dt>Date</dt>
-      <dd>{{ shipment.created_at }}</dd>
+      <dd>{{ order.created_at }}</dd>
     </div>
     <div>
       <dt>Email status</dt>
       <dd>
-        {% if shipment.email_delivered %}
-        <span class="badge status-active">Sent {{ shipment.email_sent_at }}</span>
+        {% if order.email_delivered %}
+        <span class="badge status-active">Sent {{ order.email_sent_at }}</span>
         {% else %}
         <span class="badge status-review">Not sent</span>
         {% endif %}
       </dd>
     </div>
   </dl>
-  {% if shipment.notes %}<p><strong>Notes:</strong> {{ shipment.notes }}</p>{% endif %}
+  {% if order.notes %}<p><strong>Notes:</strong> {{ order.notes }}</p>{% endif %}
 
-  {% if not shipment.email_delivered %}
-  <form method="post" action="{% url 'inventory:shipment_resend_email' shipment.pk %}">
+  {% if not order.email_delivered %}
+  <form method="post" action="{% url 'inventory:order_resend_email' order.pk %}">
     {% csrf_token %}
     <button type="submit" class="secondary">Resend email</button>
   </form>
@@ -56,10 +56,10 @@
       </tr>
     </thead>
     <tbody>
-      {% for line in shipment.lines.all %}
+      {% for line in order.lines.all %}
       <tr>
         <td data-label="Item">
-          <a href="{% url 'inventory:item_detail' line.item.pk %}" class="mono">{{ line.item.serial_number }}</a>
+          <a href="{% url 'inventory:item_detail' line.item.pk %}" class="mono">{{ line.item.model_name }}</a>
         </td>
         <td data-label="Category">{{ line.item.category_path }}</td>
         <td data-label="Qty">{{ line.quantity_shipped }}</td>

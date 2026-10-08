@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %} {{ item.serial_number }}{%endblock%}
+{% block title %} {{ item.model_name }}{%endblock%}
 {% block content %}
 <p><a href="{% url 'inventory:item_list' %}">← Back to search</a></p>
 <section class="split">
@@ -8,12 +8,16 @@
     <h1 class="mono">{{ item.display_name }}</h1>
     <dl class="meta">
       <div>
-        <dt>Serial</dt>
-        <dd>{{ item.serial_number }}</dd>
+        <dt>Model name</dt>
+        <dd>{{ item.model_name }}</dd>
       </div>
       <div>
         <dt>Quantity</dt>
         <dd>{{ item.quantity }}</dd>
+      </div>
+      <div>
+        <dt>Price</dt>
+        <dd>{% if item.price is not None %}${{ item.price }}{% else %}—{% endif %}</dd>
       </div>
       <div>
         <dt>Category</dt>
@@ -40,6 +44,26 @@
 </section>
 
 <section class="card">
+  <h2>Move some to a different status</h2>
+  <p class="muted">Only the quantity you enter moves -- the rest stays {{ item.get_status_display }}.</p>
+  <form method="post" action="{% url 'inventory:item_split_status' item.pk %}">
+    {% csrf_token %}
+    {{ split_form.non_field_errors }}
+    <p>
+      <label for="{{ split_form.quantity.id_for_label }}">{{ split_form.quantity.label }}</label>
+      {{ split_form.quantity }}
+      {{ split_form.quantity.errors }}
+    </p>
+    <p>
+      <label for="{{ split_form.status.id_for_label }}">{{ split_form.status.label }}</label>
+      {{ split_form.status }}
+      {{ split_form.status.errors }}
+    </p>
+    <button type="submit" class="secondary">Move</button>
+  </form>
+</section>
+
+<section class="card">
   <h2>Photos</h2>
   {% if item.photos.all %}
   <div class="photo-gallery">
@@ -48,7 +72,7 @@
       <img
         class="item-photo"
         src="{{ photo.image.url }}"
-        alt="{{ photo.get_kind_display }} photo of {{ item.serial_number }}"
+        alt="{{ photo.get_kind_display }} photo of {{ item.model_name }}"
       />
       <figcaption class="muted">
         {{ photo.get_kind_display }} · {{ photo.uploaded_at }}
@@ -100,22 +124,22 @@
 </section>
 
 <section class="card">
-  <h2>Shipped out</h2>
-  {% if item.shipment_lines.all %}
+  <h2>Sent in orders</h2>
+  {% if item.order_lines.all %}
   <ol class="history">
-    {% for line in item.shipment_lines.all %}
+    {% for line in item.order_lines.all %}
     <li>
-      <strong>{{ line.quantity_shipped }} sent to {{ line.shipment.client_name }}</strong>
+      <strong>{{ line.quantity_shipped }} sent to {{ line.order.client_name }}</strong>
       <span class="muted">
-        {{ line.shipment.created_at }}
-        {% if line.shipment.job_reference %} · {{ line.shipment.job_reference }}{% endif %}
-        · <a href="{% url 'inventory:shipment_detail' line.shipment.pk %}">view shipment</a>
+        {{ line.order.created_at }}
+        {% if line.order.job_reference %} · {{ line.order.job_reference }}{% endif %}
+        · <a href="{% url 'inventory:order_detail' line.order.pk %}">view order</a>
       </span>
     </li>
     {% endfor %}
   </ol>
   {% else %}
-  <p class="muted">Never shipped out.</p>
+  <p class="muted">Never included in an order.</p>
   {% endif %}
 </section>
 {% endblock %}

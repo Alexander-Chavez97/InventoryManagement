@@ -98,6 +98,10 @@ DATABASES = {
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "admin"),
         "HOST": os.environ.get("POSTGRES_HOST", "db" ),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        # Without this, Django opens a brand-new Postgres connection (full
+        # TCP handshake + auth) on every single request and closes it at
+        # the end -- reuse connections for up to a minute instead.
+        "CONN_MAX_AGE": int(os.environ.get("DB_CONN_MAX_AGE", "60")),
     }
 }
 
@@ -159,6 +163,13 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "user": "120/minute",
     },
+    # Without this, GET /api/items/ serializes the entire table -- every
+    # item, with its nested location and photos -- in one response. Not
+    # called from this app's own templates today, but it's a live,
+    # authenticated endpoint and that would only get worse as the catalog
+    # grows.
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
 }
 
 # Outbound shipment-notice email. Defaults to printing to the console (log

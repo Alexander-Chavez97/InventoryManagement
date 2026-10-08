@@ -45,7 +45,7 @@
       const reader = document.getElementById("barcode-reader");
       const status = document.querySelector("[data-scan-status]");
       const stopBtn = document.querySelector("[data-scan-stop]");
-      const serial = document.getElementById("id_serial_number");
+      const serial = document.getElementById("id_model_name");
       if (!reader || typeof Html5Qrcode === "undefined") {
         if (status) status.textContent = "Barcode scanner library did not load.";
         return;
@@ -71,7 +71,7 @@
       } catch (error) {
         if (status) {
           status.textContent =
-            "Could not open the camera. Use Take photo, or type the serial.";
+            "Could not open the camera. Use Take photo, or type the model name.";
         }
         this.stop();
       }

@@ -27,5 +27,5 @@ class ItemViewSet(viewsets.ReadOnlyModelViewSet):
         if category:
             qs = qs.filter(subsubcategory__subcategory__category__name__iexact=category)
         if q:
-            qs = qs.filter(serial_number__icontains=q)
+            qs = qs.filter(model_name__icontains=q)
         return qs

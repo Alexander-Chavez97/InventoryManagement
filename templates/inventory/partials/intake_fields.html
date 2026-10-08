@@ -1,6 +1,17 @@
 <div id="intake-form">
   {% if item %}
+  {% if merged %}
+  <p class="success">Added {{ merged_quantity }} more {{ item.model_name }} -- now {{ item.quantity }} total.</p>
+  {% else %}
   <p class="success">Recorded {{ item.display_name }}{% if item.photos.count %} with {{ item.photos.count }} photo{{ item.photos.count|pluralize }}{% endif %}.</p>
+  {% endif %}
+  {% if is_new_model %}
+    {% if matched_pattern %}
+    <p class="muted">New model "{{ item.model_name }}" added to the catalog (matches: {{ matched_pattern.label }}).</p>
+    {% else %}
+    <p class="warning">Heads up -- "{{ item.model_name }}" doesn't match any known model format. Added to the catalog, flagged for review.</p>
+    {% endif %}
+  {% endif %}
   {% endif %}
   <form
     method="post"
@@ -16,9 +27,12 @@
     {{ form.non_field_errors }}
 
     <div class="serial-row">
-      <label for="{{ form.serial_number.id_for_label }}">Serial number</label>
-      {{ form.serial_number }}
-      {{ form.serial_number.errors }}
+      <label for="{{ form.model_name.id_for_label }}">Model name</label>
+      {{ form.model_name }}
+      <datalist id="model-name-suggestions">
+        {% for name in catalog_names %}<option value="{{ name }}"></option>{% endfor %}
+      </datalist>
+      {{ form.model_name.errors }}
       <div class="scan-actions">
         <button type="button" class="secondary" data-scan-start>Scan with camera</button>
         <button type="button" class="secondary" data-scan-stop hidden>Stop camera</button>
@@ -31,6 +45,12 @@
       <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
       {{ form.quantity }}
       {{ form.quantity.errors }}
+    </p>
+
+    <p>
+      <label for="{{ form.price.id_for_label }}">{{ form.price.label }}</label>
+      {{ form.price }}
+      {{ form.price.errors }}
     </p>
 
     <p>

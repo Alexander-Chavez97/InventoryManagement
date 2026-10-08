@@ -2,8 +2,9 @@
 <table class="inventory-table">
   <thead>
     <tr>
-      <th>Serial</th>
+      <th>Model name</th>
       <th>Qty</th>
+      <th>Price</th>
       <th>Category</th>
       <th>Status</th>
       <th>Location</th>
@@ -13,8 +14,9 @@
   <tbody>
     {% for item in items %}
     <tr>
-      <td data-label="Serial"><a href="{% url 'inventory:item_detail' item.pk %}">{{ item.serial_number }}</a></td>
+      <td data-label="Model name"><a href="{% url 'inventory:item_detail' item.pk %}">{{ item.model_name }}</a></td>
       <td data-label="Qty">{{ item.quantity }}</td>
+      <td data-label="Price">{% if item.price is not None %}${{ item.price }}{% else %}—{% endif %}</td>
       <td data-label="Category">{{ item.category_path }}</td>
       <td data-label="Status"><span class="badge status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
       <td data-label="Location">{{ item.location|default:"Unassigned" }}</td>

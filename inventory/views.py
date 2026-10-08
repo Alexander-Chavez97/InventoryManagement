@@ -16,13 +16,24 @@ from django.views.decorators.http import require_POST
 from .forms import (
     ItemFilterForm,
     ItemPhotoForm,
+    OrderHeaderForm,
+    OrderLineFormSet,
     ScannerIntakeForm,
-    ShipmentHeaderForm,
-    ShipmentLineFormSet,
+    SplitStatusForm,
     StatusChangeForm,
     StaffUserCreationForm,
 )
-from .models import Item, ItemPhoto, Shipment, ShipmentLine, Subcategory, SubSubcategory
+from .models import (
+    Item,
+    ItemPhoto,
+    ModelCatalog,
+    Order,
+    OrderLine,
+    Subcategory,
+    SubSubcategory,
+    find_or_create_lot,
+    register_model_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +43,10 @@ def _save_photos(item, files, kind="DESCRIPTION"):
         if not upload:
             continue
         ItemPhoto.objects.create(item=item, image=upload, kind=kind)
+
+
+def _catalog_names():
+    return list(ModelCatalog.objects.order_by("name").values_list("name", flat=True))
 
 
 def _filtered_items(request):
@@ -46,7 +61,7 @@ def _filtered_items(request):
         category = form.cleaned_data.get("category")
         include_out_of_stock = form.cleaned_data.get("include_out_of_stock")
         if query:
-            items = items.filter(serial_number__icontains=query.strip())
+            items = items.filter(model_name__icontains=query.strip())
         if status:
             items = items.filter(status=status)
         if category:
@@ -98,7 +113,7 @@ def item_detail(request, pk):
     item = get_object_or_404(
         Item.objects.select_related(
             "location", "subsubcategory__subcategory__category"
-        ).prefetch_related("status_history__changed_by", "photos", "shipment_lines__shipment"),
+        ).prefetch_related("status_history__changed_by", "photos", "order_lines__order"),
         pk=pk,
     )
     if request.method == "POST" and request.POST.get("intent") == "photos":
@@ -127,8 +142,73 @@ def item_detail(request, pk):
     return render(
         request,
         "inventory/item_detail.html",
-        {"item": item, "form": form, "photo_form": photo_form},
+        {
+            "item": item,
+            "form": form,
+            "photo_form": photo_form,
+            "split_form": SplitStatusForm(item=item),
+        },
     )
+
+
+@login_required
+@require_POST
+def item_split_status(request, pk):
+    """Move some (not necessarily all) of an item's on-hand quantity to a
+    different status, without touching the rest. The moved quantity joins
+    whatever lot already matches the new status/location, or starts a new
+    one -- same matching rule as intake merging."""
+    item = get_object_or_404(Item, pk=pk)
+    form = SplitStatusForm(request.POST, item=item)
+    if not form.is_valid():
+        for errors in form.errors.values():
+            for error in errors:
+                messages.error(request, error)
+        return redirect("inventory:item_detail", pk=item.pk)
+
+    quantity = form.cleaned_data["quantity"]
+    new_status = form.cleaned_data["status"]
+
+    with transaction.atomic():
+        item = Item.objects.select_for_update().get(pk=item.pk)
+        if new_status == item.status:
+            messages.error(
+                request,
+                f"Already {item.get_status_display()} now -- someone else may have changed "
+                "it since this page loaded. Please try again.",
+            )
+            return redirect("inventory:item_detail", pk=item.pk)
+        if quantity > item.quantity:
+            messages.error(
+                request,
+                f"Only {item.quantity} on hand now -- someone else may have changed it "
+                "since this page loaded. Please try again.",
+            )
+            return redirect("inventory:item_detail", pk=item.pk)
+
+        item.quantity -= quantity
+        item._changed_by = request.user
+        item.save(update_fields=["quantity"])
+
+        destination, dest_created = find_or_create_lot(
+            model_name=item.model_name,
+            subsubcategory=item.subsubcategory,
+            status=new_status,
+            location=item.location,
+            quantity=quantity,
+            changed_by=request.user,
+            price=item.price,
+        )
+        if not dest_created:
+            destination.quantity += quantity
+            destination._changed_by = request.user
+            destination.save(update_fields=["quantity"])
+
+    messages.success(
+        request,
+        f"Moved {quantity} of {item.model_name} to {destination.get_status_display()}.",
+    )
+    return redirect("inventory:item_detail", pk=item.pk)
 
 
 @login_required
@@ -136,30 +216,82 @@ def scanner_intake(request):
     if request.method == "POST":
         form = ScannerIntakeForm(request.POST, request.FILES)
         if form.is_valid():
-            item = form.save(commit=False)
-            item._changed_by = request.user
-            item.save()
+            cleaned = form.cleaned_data
+            item, created = find_or_create_lot(
+                model_name=cleaned["model_name"],
+                subsubcategory=cleaned["subsubcategory"],
+                status=cleaned["status"],
+                location=cleaned.get("location"),
+                quantity=cleaned["quantity"],
+                changed_by=request.user,
+                price=cleaned.get("price"),
+            )
+            merged = not created
+            if merged:
+                # Same model, same category, same status, same location as
+                # an existing lot -- add to it instead of creating a
+                # duplicate row.
+                update_fields = ["quantity"]
+                item.quantity += cleaned["quantity"]
+                if item.price is None and cleaned.get("price") is not None:
+                    item.price = cleaned["price"]
+                    update_fields.append("price")
+                item._changed_by = request.user
+                item.save(update_fields=update_fields)
             _save_photos(item, request.FILES.getlist("photos"))
+            _catalog_entry, is_new_model, matched_pattern = register_model_name(item.model_name)
+
+            if merged:
+                base_message = f"Added {cleaned['quantity']} more {item.model_name} -- now {item.quantity} total."
+                if cleaned.get("notes"):
+                    base_message += (
+                        " (The notes you typed weren't saved -- this merged into an "
+                        "existing item, which keeps its own notes.)"
+                    )
+            else:
+                base_message = f"Intake recorded: {item.display_name}."
+
             if request.htmx:
                 response = render(
                     request,
                     "inventory/partials/intake_success.html",
-                    {"item": item, "form": ScannerIntakeForm()},
+                    {
+                        "item": item,
+                        "form": ScannerIntakeForm(),
+                        "catalog_names": _catalog_names(),
+                        "is_new_model": is_new_model,
+                        "matched_pattern": matched_pattern,
+                        "merged": merged,
+                        "merged_quantity": cleaned["quantity"],
+                    },
                 )
                 response["HX-Trigger"] = "intake-success"
                 return response
-            messages.success(request, f"Intake recorded: {item.display_name}.")
+            if is_new_model and matched_pattern is None:
+                messages.warning(
+                    request,
+                    f"{base_message} Heads up -- "
+                    f'"{item.model_name}" doesn\'t match any known model format, so '
+                    "it's been flagged for review in the model catalog.",
+                )
+            elif is_new_model:
+                messages.success(
+                    request,
+                    f'{base_message} New model "{item.model_name}" added to the catalog.',
+                )
+            else:
+                messages.success(request, base_message)
             return redirect("inventory:intake")
         if request.htmx:
             return render(
                 request,
                 "inventory/partials/intake_form.html",
-                {"form": form},
+                {"form": form, "catalog_names": _catalog_names()},
                 status=422,
             )
     else:
         form = ScannerIntakeForm()
-    return render(request, "inventory/intake.html", {"form": form})
+    return render(request, "inventory/intake.html", {"form": form, "catalog_names": _catalog_names()})
 
 
 @login_required
@@ -206,7 +338,7 @@ def quick_status(request, pk):
     if request.htmx:
         context = _item_list_context(request)
         return render(request, "inventory/partials/item_results.html", context)
-    messages.success(request, f"{item.serial_number} set to {item.get_status_display()}.")
+    messages.success(request, f"{item.model_name} set to {item.get_status_display()}.")
     return redirect("inventory:item_list")
 
 def _is_admin(user):
@@ -229,62 +361,62 @@ def create_staff_user(request):
     return render(request, "inventory/create_staff.html", {"form": form})
 
 
-def _send_shipment_email(shipment):
+def _send_order_email(order):
     """Email the client what shipped. Failures are logged and left for the
-    caller to notice via `shipment.email_delivered` -- a failed send should
+    caller to notice via `order.email_delivered` -- a failed send should
     never roll back the inventory change that already happened."""
     if settings.EMAIL_BACKEND.endswith("console.EmailBackend"):
         logger.warning(
-            "Shipment #%s: EMAIL_HOST is not set, so this email will only be "
+            "Order #%s: EMAIL_HOST is not set, so this email will only be "
             "printed to this log -- it is NOT actually being delivered to %s. "
             "Add EMAIL_HOST/EMAIL_HOST_USER/EMAIL_HOST_PASSWORD to .env to send real email.",
-            shipment.pk,
-            shipment.client_email,
+            order.pk,
+            order.client_email,
         )
     logger.info(
-        "Shipment #%s: sending shipment email to %s via backend=%s host=%s:%s",
-        shipment.pk,
-        shipment.client_email,
+        "Order #%s: sending order email to %s via backend=%s host=%s:%s",
+        order.pk,
+        order.client_email,
         settings.EMAIL_BACKEND,
         settings.EMAIL_HOST or "(none)",
         settings.EMAIL_PORT,
     )
     body = render_to_string(
-        "inventory/email/shipment_notice.txt",
-        {"shipment": shipment, "lines": shipment.lines.select_related("item")},
+        "inventory/email/order_notice.txt",
+        {"order": order, "lines": order.lines.select_related("item")},
     )
-    subject = "Shipment notice"
-    if shipment.job_reference:
-        subject = f"{subject} - {shipment.job_reference}"
+    subject = "Order notice"
+    if order.job_reference:
+        subject = f"{subject} - {order.job_reference}"
     try:
         sent_count = send_mail(
             subject,
             body,
             settings.DEFAULT_FROM_EMAIL,
-            [shipment.client_email],
+            [order.client_email],
             fail_silently=False,
         )
     except Exception:
-        logger.exception("Shipment #%s: send_mail() raised -- email NOT sent", shipment.pk)
+        logger.exception("Order #%s: send_mail() raised -- email NOT sent", order.pk)
         return
     logger.info(
-        "Shipment #%s: send_mail() returned %s (number of messages Django handed to the backend)",
-        shipment.pk,
+        "Order #%s: send_mail() returned %s (number of messages Django handed to the backend)",
+        order.pk,
         sent_count,
     )
-    shipment.email_sent_at = timezone.now()
-    shipment.save(update_fields=["email_sent_at"])
+    order.email_sent_at = timezone.now()
+    order.save(update_fields=["email_sent_at"])
 
 
 @login_required
-def shipment_new(request):
-    """Build an outbound shipment, preview it, and only on an explicit
+def order_new(request):
+    """Build an outbound order, preview it, and only on an explicit
     second confirmation does anything get written: inventory is decremented,
-    the Shipment/ShipmentLine rows are created, and the client is emailed.
+    the Order/OrderLine rows are created, and the client is emailed.
     Nothing happens from the first (preview) submission alone."""
     if request.method == "POST":
-        header_form = ShipmentHeaderForm(request.POST)
-        formset = ShipmentLineFormSet(request.POST, prefix="line")
+        header_form = OrderHeaderForm(request.POST)
+        formset = OrderLineFormSet(request.POST, prefix="line")
         is_confirm = request.POST.get("confirm") == "1"
 
         if header_form.is_valid() and formset.is_valid():
@@ -309,7 +441,7 @@ def shipment_new(request):
                 ]
                 return render(
                     request,
-                    "inventory/shipment_review.html",
+                    "inventory/order_review.html",
                     {
                         "client_name": header_form.cleaned_data["client_name"],
                         "client_email": header_form.cleaned_data["client_email"],
@@ -321,7 +453,7 @@ def shipment_new(request):
                 )
 
             # Confirm step: re-check stock under a lock in case it changed
-            # since the preview was rendered (another shipment, an edit,
+            # since the preview was rendered (another order, an edit,
             # someone with two tabs open), then commit everything together.
             with transaction.atomic():
                 locked_lines = []
@@ -330,14 +462,14 @@ def shipment_new(request):
                     if qty > fresh_item.quantity:
                         messages.error(
                             request,
-                            f"Only {fresh_item.quantity} of {fresh_item.serial_number} left now "
+                            f"Only {fresh_item.quantity} of {fresh_item.model_name} left now "
                             "-- someone else may have changed it since you reviewed this "
-                            "shipment. Please build it again.",
+                            "order. Please build it again.",
                         )
-                        return redirect("inventory:shipment_new")
+                        return redirect("inventory:order_new")
                     locked_lines.append((fresh_item, qty))
 
-                shipment = Shipment.objects.create(
+                order = Order.objects.create(
                     client_name=header_form.cleaned_data["client_name"],
                     client_email=header_form.cleaned_data["client_email"],
                     job_reference=header_form.cleaned_data["job_reference"],
@@ -345,58 +477,58 @@ def shipment_new(request):
                     created_by=request.user,
                 )
                 for fresh_item, qty in locked_lines:
-                    ShipmentLine.objects.create(
-                        shipment=shipment, item=fresh_item, quantity_shipped=qty
+                    OrderLine.objects.create(
+                        order=order, item=fresh_item, quantity_shipped=qty
                     )
                     fresh_item.quantity -= qty
                     fresh_item.save(update_fields=["quantity"])
 
-            _send_shipment_email(shipment)
-            if shipment.email_delivered:
+            _send_order_email(order)
+            if order.email_delivered:
                 messages.success(
-                    request, f"Shipment recorded and emailed to {shipment.client_email}."
+                    request, f"Order recorded and emailed to {order.client_email}."
                 )
             else:
                 messages.warning(
                     request,
-                    f"Shipment recorded and inventory updated, but the email to "
-                    f"{shipment.client_email} failed to send. You can resend it from "
-                    "the shipment page.",
+                    f"Order recorded and inventory updated, but the email to "
+                    f"{order.client_email} failed to send. You can resend it from "
+                    "the order page.",
                 )
-            return redirect("inventory:shipment_detail", pk=shipment.pk)
+            return redirect("inventory:order_detail", pk=order.pk)
     else:
-        header_form = ShipmentHeaderForm()
-        formset = ShipmentLineFormSet(prefix="line")
+        header_form = OrderHeaderForm()
+        formset = OrderLineFormSet(prefix="line")
 
     return render(
         request,
-        "inventory/shipment_form.html",
+        "inventory/order_form.html",
         {"header_form": header_form, "formset": formset},
     )
 
 
 @login_required
-def shipment_list(request):
-    shipments = Shipment.objects.select_related("created_by").prefetch_related("lines__item")
-    return render(request, "inventory/shipment_list.html", {"shipments": shipments})
+def order_list(request):
+    orders = Order.objects.select_related("created_by").prefetch_related("lines__item")
+    return render(request, "inventory/order_list.html", {"orders": orders})
 
 
 @login_required
-def shipment_detail(request, pk):
-    shipment = get_object_or_404(
-        Shipment.objects.select_related("created_by").prefetch_related("lines__item"),
+def order_detail(request, pk):
+    order = get_object_or_404(
+        Order.objects.select_related("created_by").prefetch_related("lines__item"),
         pk=pk,
     )
-    return render(request, "inventory/shipment_detail.html", {"shipment": shipment})
+    return render(request, "inventory/order_detail.html", {"order": order})
 
 
 @login_required
 @require_POST
-def shipment_resend_email(request, pk):
-    shipment = get_object_or_404(Shipment, pk=pk)
-    _send_shipment_email(shipment)
-    if shipment.email_delivered:
-        messages.success(request, f"Resent to {shipment.client_email}.")
+def order_resend_email(request, pk):
+    order = get_object_or_404(Order, pk=pk)
+    _send_order_email(order)
+    if order.email_delivered:
+        messages.success(request, f"Resent to {order.client_email}.")
     else:
         messages.error(request, "Still failed to send -- check the email settings.")
-    return redirect("inventory:shipment_detail", pk=shipment.pk)
+    return redirect("inventory:order_detail", pk=order.pk)
