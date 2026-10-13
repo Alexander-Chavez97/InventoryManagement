@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework.authtoken",
     "django_htmx",
     "axes",
     "inventory",
@@ -60,6 +61,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -121,6 +123,21 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Serve static files directly from gunicorn via whitenoise. Production's
+# nginx (see nginx/nginx.conf) already serves /static/ from a shared
+# volume and will keep doing so unaffected -- this only matters for the
+# demo stack (demo/docker-compose.yml), whose `web` service has no nginx
+# in front of it at all, so without this /static/css/app.css and
+# /static/js/htmx.min.js 404 even after collectstatic runs.
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
@@ -154,6 +171,17 @@ LOGIN_REDIRECT_URL = "inventory:item_list"
 LOGOUT_REDIRECT_URL = "login"
 
 REST_FRAMEWORK = {
+    # Token auth is what lets a non-browser caller (the buildathon MCP
+    # server, in particular) authenticate at all -- the previous default
+    # (session + basic auth only) has no way for a server-to-server client
+    # to authenticate without either a live Django session cookie or
+    # sending a username/password on every request. Session auth stays
+    # listed too so the browsable API in DEBUG still works from a logged-in
+    # browser tab.
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],

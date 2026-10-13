@@ -1,3 +1,4 @@
+from datetime import timedelta
 from io import BytesIO
 
 from django.contrib.auth.models import User
@@ -6,7 +7,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from .forms import ItemFilterForm, ScannerIntakeForm
@@ -18,6 +21,7 @@ from .models import (
     MAX_PHOTO_DIMENSION,
     ModelCatalog,
     Order,
+    OrderLine,
     Subcategory,
     SubSubcategory,
 )
@@ -473,6 +477,110 @@ class ApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status_display"], "Active")
         self.assertEqual(response.data["item_type_display"], "Camera")
+
+    def test_token_authentication_works(self):
+        # The MCP server authenticates exactly this way -- a bearer token,
+        # no session cookie -- so this is the one test that exercises the
+        # actual new auth path rather than force_authenticate(), which
+        # bypasses authentication entirely and would pass even if
+        # TokenAuthentication were never wired up.
+        token = Token.objects.create(user=self.user)
+        response = self.client.get(
+            "/api/items/", HTTP_AUTHORIZATION=f"Token {token.key}"
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_bad_token_is_rejected(self):
+        response = self.client.get(
+            "/api/items/", HTTP_AUTHORIZATION="Token not-a-real-token"
+        )
+        self.assertIn(response.status_code, (401, 403))
+
+
+class OrderApiTests(TestCase):
+    """GET /api/orders/ -- the read-only endpoint the agent's
+    get_order_history tool calls (Buildathon Inventory Agent brief,
+    Section 7)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="test-pass-123")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        cat, sub, ssc = make_category_chain()
+        self.radio = Item.objects.create(
+            model_name="XE43-GEN3", subsubcategory=ssc, status="ACTIVE", quantity=5
+        )
+        self.antenna = Item.objects.create(
+            model_name="ANT-900", subsubcategory=ssc, status="ACTIVE", quantity=5
+        )
+
+        self.recent_order = Order.objects.create(
+            client_name="Rio Grande Logistics", client_email="rio@example.com"
+        )
+        OrderLine.objects.create(order=self.recent_order, item=self.radio, quantity_shipped=3)
+
+        self.old_order = Order.objects.create(
+            client_name="Laredo Test Fleet Co.", client_email="ltf@example.com"
+        )
+        OrderLine.objects.create(order=self.old_order, item=self.antenna, quantity_shipped=2)
+        # created_at is auto_now_add, so it can't be set on create() --
+        # push this one outside the default 90-day window after the fact.
+        Order.objects.filter(pk=self.old_order.pk).update(
+            created_at=timezone.now() - timedelta(days=120)
+        )
+
+    def test_anonymous_requests_are_rejected(self):
+        self.client.force_authenticate(None)
+        response = self.client.get("/api/orders/")
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_default_window_excludes_orders_older_than_90_days(self):
+        response = self.client.get("/api/orders/")
+        self.assertEqual(response.status_code, 200)
+        client_names = {row["client_name"] for row in response.data["results"]}
+        self.assertEqual(client_names, {"Rio Grande Logistics"})
+
+    def test_days_all_includes_everything(self):
+        response = self.client.get("/api/orders/", {"days": "all"})
+        client_names = {row["client_name"] for row in response.data["results"]}
+        self.assertEqual(client_names, {"Rio Grande Logistics", "Laredo Test Fleet Co."})
+
+    def test_days_param_overrides_default_window(self):
+        response = self.client.get("/api/orders/", {"days": "200"})
+        client_names = {row["client_name"] for row in response.data["results"]}
+        self.assertEqual(client_names, {"Rio Grande Logistics", "Laredo Test Fleet Co."})
+
+    def test_filters_by_item_model_name(self):
+        response = self.client.get(
+            "/api/orders/", {"item": "ANT-900", "days": "all"}
+        )
+        client_names = [row["client_name"] for row in response.data["results"]]
+        self.assertEqual(client_names, ["Laredo Test Fleet Co."])
+
+    def test_item_filter_is_case_insensitive_substring(self):
+        response = self.client.get("/api/orders/", {"item": "xe43"})
+        client_names = [row["client_name"] for row in response.data["results"]]
+        self.assertEqual(client_names, ["Rio Grande Logistics"])
+
+    def test_lines_include_model_name_and_quantity(self):
+        response = self.client.get(f"/api/orders/{self.recent_order.pk}/")
+        self.assertEqual(response.status_code, 200)
+        lines = response.data["lines"]
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0]["model_name"], "XE43-GEN3")
+        self.assertEqual(lines[0]["quantity_shipped"], 3)
+
+    def test_client_email_is_not_exposed(self):
+        # Deliberately left off OrderSerializer -- the agent only needs a
+        # client name to answer "who was this shipped to", and there's no
+        # reason for a read-only demo-facing endpoint to hand back contact
+        # details on top of that.
+        response = self.client.get(f"/api/orders/{self.recent_order.pk}/")
+        self.assertNotIn("client_email", response.data)
+
+    def test_write_methods_are_not_allowed(self):
+        response = self.client.post("/api/orders/", {"client_name": "Nope"})
+        self.assertEqual(response.status_code, 405)
 
 
 @override_settings(AXES_ENABLED=True)

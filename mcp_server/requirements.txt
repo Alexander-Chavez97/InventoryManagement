@@ -1,0 +1,6 @@
+# Pinned to what this server was built and tested against (buildathon demo
+# needs a stable, reproducible stack more than it needs the latest patch).
+# `mcp` already pulls in httpx, starlette, and uvicorn as dependencies --
+# httpx is listed explicitly too since django_client.py imports it directly.
+mcp==1.27.0
+httpx==0.28.1

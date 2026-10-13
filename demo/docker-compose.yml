@@ -1,0 +1,85 @@
+# Standalone DEMO stack for the Superhuman Go buildathon agent (brief
+# Section 3/4). Isolated from the production stack in ../docker-compose.yml:
+# its own Postgres volume, its own .env, its own ports. It is never meant to
+# be run from inside the production stack's directory or with the
+# production .env -- see demo/.env.example and demo/mcp.env.example.
+#
+# Only `mcp` ever gets a public hostname (via its own Cloudflare tunnel --
+# see mcp.env.example). `web` is intentionally not proxied through nginx or
+# tunneled publicly at all: per the brief's architecture (Section 4), the
+# Go agent only ever talks to the MCP server, and the MCP server is the
+# only thing that needs to be reachable from outside this docker network.
+# `web`'s host port below is for your own local browsing/debugging only.
+#
+# Bring up with (from this directory):
+#   docker compose up -d --build
+# Then, one time, to set up the demo database:
+#   docker compose exec web python manage.py migrate
+#   docker compose exec -e DEMO_SEED_CONFIRM=yes web python manage.py seed_demo --reset
+#   docker compose exec web python manage.py create_mcp_api_user
+# Copy the printed token into mcp.env as DJANGO_API_TOKEN, then:
+#   docker compose up -d --build mcp
+
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Local-only, for your own browsing/debugging -- never exposed
+      # publicly. Different host port than production's 8000 so both
+      # stacks can run at the same time.
+      - "127.0.0.1:8010:8000"
+    volumes:
+      - demo_static_volume:/app/staticfiles
+      - demo_media_volume:/app/mediafiles
+
+  mcp:
+    build: ../mcp_server
+    restart: unless-stopped
+    env_file: mcp.env
+    depends_on:
+      - web
+    ports:
+      # Local-only for now, so you can point Agent Builder's custom-MCP
+      # test/connect flow at it before the tunnel is wired up. Once
+      # cloudflared is running, the public hostname is what Superhuman Go
+      # actually uses.
+      - "127.0.0.1:8100:8100"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    # A NEW tunnel token for a NEW hostname -- not the production one in
+    # ../.env (brief Section 9: separate tunnel/hostname from production).
+    # Create it in the Cloudflare dashboard (Zero Trust -> Networks ->
+    # Tunnels), route its public hostname to this stack's `mcp` service on
+    # port 8100, then put the token in THIS directory's .env (not mcp.env)
+    # as CLOUDFLARE_TUNNEL_TOKEN -- docker compose reads ${...} references
+    # in this file from .env automatically.
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - mcp
+
+volumes:
+  demo_postgres_data:
+  demo_static_volume:
+  demo_media_volume:
