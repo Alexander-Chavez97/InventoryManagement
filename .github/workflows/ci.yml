@@ -50,3 +50,35 @@ jobs:
       - run: pip install -r requirements.txt
 
       - run: python manage.py test
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: pwsh
+
+    # Runs on the Mini PC itself, via the self-hosted runner registered
+    # there. Deliberately no actions/checkout step: this operates on the
+    # one real production clone (git fetch + reset, not a fresh checkout
+    # into the runner's own _work folder), since that's the clone with
+    # the real .env and the Postgres/static/media volumes docker-compose
+    # expects to find next to it.
+    steps:
+      - name: Pull latest master
+        run: |
+          cd "C:\PATH\TO\InventoryManagement"   # <-- replace with the real path on the Mini PC
+          git fetch origin
+          git reset --hard origin/master
+
+      - name: Back up before deploying
+        run: |
+          cd "C:\PATH\TO\InventoryManagement"
+          python backup.py
+
+      - name: Rebuild and restart
+        run: |
+          cd "C:\PATH\TO\InventoryManagement"
+          docker compose up -d --build web
+          docker compose ps
