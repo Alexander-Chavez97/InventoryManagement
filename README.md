@@ -15,6 +15,15 @@ Small installers doing two-way radio, CCTV, GPS tracking, and security system wo
 - **Read-only REST API** — `GET /api/items/` with filtering by status, item type, and serial number search, built with Django REST Framework, for future integrations (dashboards, reporting) without touching the core app.
 - **Server-rendered UI with htmx** — no SPA build step, no client-side routing; partial-page updates via [htmx](https://htmx.org/) keep the frontend simple and fast.
 
+## Buildathon agent demo (this branch)
+
+This branch adds a Superhuman Go AI agent, "Inventory Desk," that answers
+stock/order questions over a read-only MCP server -- built for the TAMUS x
+Superhuman Buildathon. It runs as a fully isolated demo stack (its own
+database, its own Cloudflare tunnel, fake seeded data) that never touches
+production. See [`demo/README.md`](demo/README.md) for the architecture,
+setup steps, and the auth/debugging notes from building it.
+
 ## Security & production hardening
 
 This isn't just a CRUD app — it's deployed on the open internet, so it's been hardened accordingly:
