@@ -20,6 +20,10 @@ staticfiles/
 
 # Environment variables 
 .env
+# The demo stack's real MCP server env (API token, secret URL path) --
+# .env above already covers demo/.env and mcp_server/.env; this is the
+# separate mcp.env file demo/docker-compose.yml's mcp service loads.
+mcp.env
 
 # OS generated files
 .DS_Store

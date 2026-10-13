@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Item, ItemPhoto, Location
+from .models import Item, ItemPhoto, Location, Order, OrderLine
 
 
 class LocationSerializer(serializers.ModelSerializer):
@@ -59,4 +59,30 @@ class ItemSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "photos",
+        ]
+
+
+class OrderLineSerializer(serializers.ModelSerializer):
+    # The agent/MCP side identifies items by model_name, not by the item's
+    # numeric id -- surface it directly so callers don't have to make a
+    # second request just to resolve what `item` points to.
+    model_name = serializers.CharField(source="item.model_name", read_only=True)
+
+    class Meta:
+        model = OrderLine
+        fields = ["id", "item", "model_name", "quantity_shipped"]
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    lines = OrderLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            "id",
+            "client_name",
+            "job_reference",
+            "notes",
+            "created_at",
+            "lines",
         ]
