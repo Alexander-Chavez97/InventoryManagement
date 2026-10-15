@@ -21,15 +21,17 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "inventory" {
   account_id = var.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.inventory.id
 
-  config {
-    ingress_rule {
-      hostname = var.app_hostname
-      service  = "http://nginx:80" # reaches the nginx service inside this host's docker compose network
-    }
-    # Cloudflare requires a catch-all as the final ingress rule.
-    ingress_rule {
-      service = "http_status:404"
-    }
+  config = {
+    ingress = [
+      {
+        hostname = var.app_hostname
+        service  = "http://nginx:80" # reaches the nginx service inside this host's docker compose network
+      },
+      # Cloudflare requires a catch-all as the final ingress rule.
+      {
+        service = "http_status:404"
+      }
+    ]
   }
 }
 
@@ -42,22 +44,29 @@ resource "cloudflare_dns_record" "inventory" {
   ttl     = 1 # required "Auto" value when proxied = true
 }
 
+# As of the v5 provider, Access policies are standalone/reusable objects --
+# NOT nested under a specific application via application_id/precedence
+# (that's the old v4 shape). An application attaches to a policy the other
+# way around, via its own `policies` list below.
+resource "cloudflare_zero_trust_access_policy" "admin_email_otp" {
+  account_id = var.cloudflare_account_id
+  name       = "Admin allowlist -- email OTP"
+  decision   = "allow"
+
+  include = [
+    for addr in var.admin_allowed_emails : {
+      email = {
+        email = addr
+      }
+    }
+  ]
+}
+
 resource "cloudflare_zero_trust_access_application" "admin" {
   account_id       = var.cloudflare_account_id
   name             = "Inventory Management -- /admin/"
   domain           = "${var.app_hostname}${var.admin_path}"
   type             = "self_hosted"
   session_duration = "24h"
-}
-
-resource "cloudflare_zero_trust_access_policy" "admin_email_otp" {
-  account_id     = var.cloudflare_account_id
-  application_id = cloudflare_zero_trust_access_application.admin.id
-  name           = "Admin allowlist -- email OTP"
-  decision       = "allow"
-  precedence     = 1
-
-  include {
-    email = var.admin_allowed_emails
-  }
+  policies         = [cloudflare_zero_trust_access_policy.admin_email_otp.id]
 }
