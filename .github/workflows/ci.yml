@@ -82,7 +82,7 @@ jobs:
           fetch-depth: 0 # gitleaks needs real history to scan, not just the latest commit
 
       - name: Gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # No GITLEAKS_LICENSE needed -- that's only required for
