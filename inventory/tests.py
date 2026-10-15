@@ -119,8 +119,14 @@ class InventoryFlowTests(TestCase):
         Item.objects.create(model_name="A1", item_type="VEHICLE", status="ACTIVE")
         Item.objects.create(model_name="B2", item_type="RADIO", status="REVIEW")
         response = self.client.get(reverse("inventory:item_list"), {"status": "ACTIVE"})
-        self.assertContains(response, "A1")
-        self.assertNotContains(response, "B2")
+        # Check the actual filtered queryset rather than raw HTML: short
+        # names like "B2" can coincidentally appear inside the page's
+        # randomly-generated CSRF token (it's embedded three times --
+        # meta tag, hidden field, hx-headers), which made this test flaky
+        # under assertContains/assertNotContains on the full response body.
+        model_names = [item.model_name for item in response.context["items"]]
+        self.assertIn("A1", model_names)
+        self.assertNotIn("B2", model_names)
 
     def test_list_hides_out_of_stock_items_by_default(self):
         Item.objects.create(model_name="INSTOCK1", item_type="VEHICLE", status="ACTIVE", quantity=3)
