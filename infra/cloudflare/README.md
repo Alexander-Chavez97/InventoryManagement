@@ -48,9 +48,14 @@ terraform init
    terraform import cloudflare_zero_trust_tunnel_cloudflared_config.inventory <account_id>/<tunnel_id>
    ```
 
-2. **DNS record** -- find the record ID: `GET /zones/<zone_id>/dns_records?name=inventory.meridiansupply.example`
-   against the Cloudflare API (e.g. with `curl -H "Authorization: Bearer $TF_VAR_cloudflare_api_token" ...`),
-   or read it off the dashboard's "Edit DNS record" panel.
+2. **DNS record** -- the dashboard's "Edit DNS record" panel doesn't show the
+   record's ID anywhere, so ask the API for it instead (same token you're
+   already using):
+   ```powershell
+   $headers = @{ Authorization = "Bearer $env:TF_VAR_cloudflare_api_token" }
+   (Invoke-RestMethod -Headers $headers "https://api.cloudflare.com/client/v4/zones/<zone_id>/dns_records?name=inventory.meridiansupply.example").result
+   ```
+   That prints the record object -- copy its `id` field.
    ```powershell
    terraform import cloudflare_dns_record.inventory <zone_id>/<record_id>
    ```
