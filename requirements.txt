@@ -1,5 +1,5 @@
 Django>=6.1.2,<6.2
-psycopg2-binary>=2.9
+psycopg2-binary>=2.9.13
 Pillow>=10.2.0
 djangorestframework>=3.18.3
 django-htmx>=1.29.0
