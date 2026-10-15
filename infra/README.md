@@ -80,6 +80,42 @@ physical or console access to this machine lands in a logged-in desktop,
 no password prompt. Reasonable for a dedicated box that's physically
 secured; worth reconsidering if that's ever not true.
 
+## 6. Observability: error tracking + uptime monitoring
+
+Error tracking is already wired into the code (`main/settings.py`,
+gated behind a `SENTRY_DSN` env var that's blank by default -- see
+`.env.example`) and `requirements.txt` already has `sentry-sdk`
+installed. What's left is account-side, done once by hand:
+
+1. Create a free account at sentry.io, make a new project, choose
+   "Django" as the platform. Copy the DSN it gives you.
+2. Add it to this host's `.env`: `SENTRY_DSN=<the dsn>`, then
+   `docker compose up -d web` to pick it up (env changes need the
+   container recreated, not just restarted).
+3. Confirm it's wired up: `docker compose exec web python manage.py
+   shell -c "1/0"` should throw, and the error should show up in the
+   Sentry project's Issues tab within a minute or two.
+
+Uptime monitoring is external by design -- if this box itself is down,
+nothing running on it can tell you that:
+
+1. `/healthz/` (added in this codebase) is the endpoint to point a
+   monitor at -- it's unauthenticated (an uptime checker can't log in)
+   and actually checks Postgres connectivity, not just that gunicorn is
+   answering. It's reachable at
+   `https://inventory.novastartx.com/healthz/` without hitting the
+   Cloudflare Access policy, since that's scoped to `/admin` only.
+2. Create a free monitor at uptimerobot.com (or any similar service) --
+   HTTP(s) check against that URL, a few minutes' interval, alert by
+   email. A non-200 response (including the 503 `/healthz/` returns
+   when the DB is unreachable) should trigger the alert.
+
+Both of these catch different failure modes: Sentry tells you about
+unhandled exceptions while the app is still up and responding; the
+uptime monitor tells you when the app -- or the whole Mini PC -- isn't
+responding at all (crashed container, lost power, dropped tunnel).
+Neither one substitutes for the other.
+
 ## Why there's no step for opening firewall ports
 
 There isn't one, on purpose. `nginx` binds to `127.0.0.1:8000` --
