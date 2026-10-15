@@ -132,6 +132,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Cloudflare TLS Termination
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = not DEBUG and not TESTING
+# Safe here specifically because this app is only ever reachable through the
+# Cloudflare Tunnel (see docker-compose.yml) -- there's no path where a real
+# visitor hits it over plain HTTP that this would break. Raised by
+# `manage.py check --deploy`'s W004 if left unset.
+SECURE_HSTS_SECONDS = 31536000 if (not DEBUG and not TESTING) else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG and not TESTING
+SECURE_HSTS_PRELOAD = not DEBUG and not TESTING
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
