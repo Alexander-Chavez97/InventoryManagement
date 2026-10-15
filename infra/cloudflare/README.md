@@ -61,11 +61,18 @@ terraform init
    ```
 
 3. **Access application + policy** -- Zero Trust -> Access -> Applications ->
-   click the app -> app ID is in the URL; its policy is nested under it.
+   click the app -> app ID is in the URL; its policy is nested under it. These
+   two are the one pair in this whole file that need a literal `accounts/`
+   prefix on the import ID (the word itself, not a placeholder) -- Access
+   applications/policies can be scoped to either an account or a zone, so the
+   provider needs that discriminator to know which; nothing else here is
+   ambiguous that way.
    ```powershell
-   terraform import cloudflare_zero_trust_access_application.admin <account_id>/<app_id>
-   terraform import cloudflare_zero_trust_access_policy.admin_email_otp <account_id>/<app_id>/<policy_id>
+   terraform import cloudflare_zero_trust_access_application.admin accounts/<account_id>/<app_id>
+   terraform import cloudflare_zero_trust_access_policy.admin_email_otp accounts/<account_id>/<app_id>/<policy_id>
    ```
+   If you see `invalid discriminator segment -<{accounts|zones}/{account_id|zone_id}>`,
+   that's this -- you're missing the `accounts/` prefix.
 
 4. **Before touching anything else:**
    ```powershell
