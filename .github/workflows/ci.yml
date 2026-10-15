@@ -4,6 +4,13 @@ name: CI
 # container on every push/PR to master -- the same DB engine production
 # uses, so a migration or query that only breaks under Postgres (not
 # SQLite) gets caught here instead of on the Mini PC.
+#
+# Also runs the DevSecOps gate: secret scanning (gitleaks), dependency
+# vulnerability scanning (pip-audit), and Django's own deploy security
+# checklist (manage.py check --deploy). All three are REQUIRED before
+# `deploy` runs -- this exists because demo/mcp.env got committed with
+# real secrets straight to master with nothing to catch it (see git
+# history around 2026-10-15). secret-scan is what would have caught that.
 on:
   push:
     branches: [master]
@@ -30,9 +37,11 @@ jobs:
           --health-retries 10
 
     env:
-      # No DJANGO_SECRET_KEY / DJANGO_DEBUG needed -- main/settings.py's
-      # TESTING flag (set automatically by `manage.py test`) already
-      # relaxes the production-only requirements for exactly this case.
+      # No DJANGO_SECRET_KEY / DJANGO_DEBUG needed for the test suite itself
+      # -- main/settings.py's TESTING flag (set automatically by `manage.py
+      # test`) already relaxes the production-only requirements for exactly
+      # this case. The deploy-check step below runs as `check`, not `test`,
+      # so it gets its own SECRET_KEY further down.
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_DB: test_db
@@ -51,13 +60,41 @@ jobs:
 
       - run: python manage.py test
 
+      - name: Dependency vulnerability scan (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Django deploy security check
+        env:
+          # CI-only throwaway value -- never used anywhere real, just long
+          # and random enough to satisfy check --deploy's SECRET_KEY
+          # strength check (security.W009). Real deployments set their own
+          # DJANGO_SECRET_KEY in .env (see infra/bootstrap.ps1).
+          DJANGO_SECRET_KEY: "ci-only-9f3a1e7c5b2d8f04a6e9c1b7d3f5a8e2c4b6d9f1a3e5c7b9d1f3a5c7e9b1d3f5"
+        run: python manage.py check --deploy --fail-level WARNING
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks needs real history to scan, not just the latest commit
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No GITLEAKS_LICENSE needed -- that's only required for
+          # organization-owned repos; this one's on a personal account.
+
   deploy:
-    needs: test
+    needs: [test, secret-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: self-hosted
     defaults:
       run:
-        shell: pwsh
+        shell: powershell
 
     # Runs on the Mini PC itself, via the self-hosted runner registered
     # there. Deliberately no actions/checkout step: this operates on the
