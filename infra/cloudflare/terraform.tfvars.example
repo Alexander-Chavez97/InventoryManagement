@@ -1,0 +1,9 @@
+cloudflare_account_id = "replace-with-account-id"
+cloudflare_zone_id    = "replace-with-zone-id"
+tunnel_name           = "inventory-mgmt-prod"       # must match the tunnel's actual name in the dashboard
+app_hostname          = "inventory.meridiansupply.example"
+admin_allowed_emails  = ["you@example.com"]
+
+# Do NOT put cloudflare_api_token here. Export it instead, in the shell you
+# run terraform from:
+#   $env:TF_VAR_cloudflare_api_token = "..."   (PowerShell, current session only)
