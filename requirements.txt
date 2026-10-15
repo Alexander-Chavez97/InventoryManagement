@@ -1,8 +1,8 @@
-Django>=5.2,<5.3
+Django>=6.1.2,<6.2
 psycopg2-binary>=2.9
 Pillow>=10.2.0
-djangorestframework>=3.14.0
+djangorestframework>=3.18.3
 django-htmx>=1.29.0
-gunicorn>=26.2.0
-sentry-sdk>=2.0.0
+gunicorn>=21.2.0
+sentry-sdk>=2.72.0
 django-axes>=8.3.1
