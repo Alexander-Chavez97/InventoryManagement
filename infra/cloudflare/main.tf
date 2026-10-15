@@ -68,5 +68,10 @@ resource "cloudflare_zero_trust_access_application" "admin" {
   domain           = "${var.app_hostname}${var.admin_path}"
   type             = "self_hosted"
   session_duration = "24h"
-  policies         = [cloudflare_zero_trust_access_policy.admin_email_otp.id]
+  policies = [
+    {
+      id         = cloudflare_zero_trust_access_policy.admin_email_otp.id
+      precedence = 1
+    }
+  ]
 }
