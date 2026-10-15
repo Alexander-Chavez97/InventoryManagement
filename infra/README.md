@@ -42,9 +42,10 @@ docker compose exec web python manage.py createsuperuser
 
 ## 3. Cloudflare Tunnel + Zero Trust Access
 
-Done once, by hand, in the Cloudflare dashboard (this is the gap that
-`infra/cloudflare` -- see that directory once it exists -- will turn into
-versioned config rather than dashboard clicks you have to remember):
+Done once, by hand, in the Cloudflare dashboard. `infra/cloudflare/`
+brings these under Terraform afterward (import, don't blind-apply -- see
+that directory's README) so future changes are a diffable `.tf` edit
+instead of an unlogged dashboard click:
 
 1. Zero Trust -> Networks -> Tunnels -> create a tunnel, route its public
    hostname (`inventory.novastartx.com`) to this host's `nginx` service
