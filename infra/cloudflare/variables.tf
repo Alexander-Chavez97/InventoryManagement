@@ -34,9 +34,9 @@ variable "app_hostname" {
 }
 
 variable "admin_path" {
-  description = "Path locked behind the Access policy."
+  description = "Path locked behind the Access policy. No trailing slash -- matches what's actually live (Django's /admin/ redirects to itself, but Access matches the bare path)."
   type        = string
-  default     = "/admin/"
+  default     = "/admin"
 }
 
 variable "admin_allowed_emails" {
