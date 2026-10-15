@@ -94,7 +94,12 @@ jobs:
     runs-on: self-hosted
     defaults:
       run:
-        shell: powershell
+        # -ExecutionPolicy Bypass: Windows PowerShell's default policy
+        # (Restricted) blocks running any local .ps1 file, including the
+        # temp script the runner generates per step -- this scopes the
+        # bypass to just these CI-run scripts rather than changing the
+        # Mini PC's system-wide execution policy.
+        shell: 'powershell -ExecutionPolicy Bypass -Command ". ''{0}''"'
 
     # Runs on the Mini PC itself, via the self-hosted runner registered
     # there. Deliberately no actions/checkout step: this operates on the
