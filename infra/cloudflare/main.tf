@@ -63,11 +63,12 @@ resource "cloudflare_zero_trust_access_policy" "admin_email_otp" {
 }
 
 resource "cloudflare_zero_trust_access_application" "admin" {
-  account_id       = var.cloudflare_account_id
-  name             = "Inventory Management -- /admin/"
-  domain           = "${var.app_hostname}${var.admin_path}"
-  type             = "self_hosted"
-  session_duration = "24h"
+  account_id                 = var.cloudflare_account_id
+  name                       = "Inventory Management -- /admin/"
+  domain                     = "${var.app_hostname}${var.admin_path}"
+  type                       = "self_hosted"
+  session_duration           = "24h"
+  http_only_cookie_attribute = false # matches what's live; flip to true separately later as a deliberate hardening change
   policies = [
     {
       id         = cloudflare_zero_trust_access_policy.admin_email_otp.id
