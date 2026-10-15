@@ -42,7 +42,7 @@
 #>
 
 param(
-    [string]$InstallDir = "C:\Inventory\InventoryManagement",
+    [string]$InstallDir = "C:\Users\meridian\Desktop\InventoryManagement",
     [string]$RepoUrl = "https://github.com/Alexander-Chavez97/InventoryManagement.git"
 )
 

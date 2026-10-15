@@ -68,17 +68,17 @@ jobs:
     steps:
       - name: Pull latest master
         run: |
-          cd "C:\PATH\TO\InventoryManagement"   # <-- replace with the real path on the Mini PC
+          cd "C:\Users\meridian\Desktop\InventoryManagement"
           git fetch origin
           git reset --hard origin/master
 
       - name: Back up before deploying
         run: |
-          cd "C:\PATH\TO\InventoryManagement"
+          cd "C:\Users\meridian\Desktop\InventoryManagement"
           python backup.py
 
       - name: Rebuild and restart
         run: |
-          cd "C:\PATH\TO\InventoryManagement"
+          cd "C:\Users\meridian\Desktop\InventoryManagement"
           docker compose up -d --build web
           docker compose ps
