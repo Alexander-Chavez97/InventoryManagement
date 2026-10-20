@@ -7,6 +7,7 @@ app_name = "inventory"
 urlpatterns = [
     path("", views.item_list, name="item_list"),
     path("intake/", views.scanner_intake, name="intake"),
+    path("intake/model-lookup/", views.model_lookup, name="model_lookup"),
     path("intake/subcategories/", views.subcategory_options, name="subcategory_options"),
     path("intake/subsubcategories/", views.subsubcategory_options, name="subsubcategory_options"),
     path("items/<int:pk>/", views.item_detail, name="item_detail"),

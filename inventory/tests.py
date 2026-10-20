@@ -399,6 +399,62 @@ class CascadingCategoryViewTests(TestCase):
         self.assertContains(response, self.subsubcategory.name)
 
 
+class ModelLookupViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alex", password="test-pass-123")
+        self.client.login(username="alex", password="test-pass-123")
+        self.category, self.subcategory, self.subsubcategory = make_category_chain()
+
+    def test_unknown_model_name_reports_nothing_on_record(self):
+        response = self.client.get(
+            reverse("inventory:model_lookup"), {"model_name": "NEW-MODEL"}
+        )
+        self.assertContains(response, "New model")
+        self.assertNotContains(response, "already on record")
+
+    def test_blank_model_name_returns_an_empty_partial(self):
+        response = self.client.get(reverse("inventory:model_lookup"))
+        self.assertNotContains(response, "New model")
+        self.assertNotContains(response, "already on record")
+
+    def test_a_known_model_shows_its_existing_lots_and_autofills_the_category(self):
+        Item.objects.create(
+            model_name="XB41H", subsubcategory=self.subsubcategory, status="ACTIVE", quantity=5,
+        )
+        response = self.client.get(
+            reverse("inventory:model_lookup"), {"model_name": "xb41h"}
+        )
+        self.assertContains(response, "already on record")
+        self.assertContains(response, "5")
+        # Autofilled: the category/subcategory/sub-subcategory selects come
+        # back pre-selected via an out-of-band swap.
+        self.assertContains(response, f'<option value="{self.category.pk}" selected')
+        self.assertContains(response, f'<option value="{self.subsubcategory.pk}" selected')
+
+    def test_lots_under_different_categories_are_shown_but_not_autofilled(self):
+        other_category, other_sub, other_ssc = make_category_chain(
+            category="Video Surveillance", subcategory="IP Cameras", subsubcategory="Dome"
+        )
+        Item.objects.create(
+            model_name="XB41H", subsubcategory=self.subsubcategory, status="ACTIVE", quantity=2,
+        )
+        Item.objects.create(
+            model_name="XB41H", subsubcategory=other_ssc, status="REVIEW", quantity=1,
+        )
+        response = self.client.get(
+            reverse("inventory:model_lookup"), {"model_name": "XB41H"}
+        )
+        self.assertContains(response, "don\'t resolve to a single category")
+        self.assertNotContains(response, "hx-swap-oob")
+
+    def test_anonymous_users_are_redirected_to_login(self):
+        self.client.logout()
+        response = self.client.get(
+            reverse("inventory:model_lookup"), {"model_name": "XB41H"}
+        )
+        self.assertEqual(response.status_code, 302)
+
+
 class StaffPermissionTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user("boss", password="test-pass-123", is_staff=True)
