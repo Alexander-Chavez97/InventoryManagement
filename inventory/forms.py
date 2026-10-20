@@ -91,6 +91,15 @@ class ScannerIntakeForm(forms.ModelForm):
                 "hx-trigger": "change",
             }
         )
+        self.fields["model_name"].widget.attrs.update(
+            {
+                "hx-get": reverse_lazy("inventory:model_lookup"),
+                "hx-target": "#model-lookup",
+                "hx-swap": "innerHTML",
+                "hx-trigger": "change, keyup changed delay:500ms",
+                "hx-params": "model_name",
+            }
+        )
 
         data = self.data if self.is_bound else None
         category_id = data.get("category") if data else None

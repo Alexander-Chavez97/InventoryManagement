@@ -33,6 +33,7 @@
         {% for name in catalog_names %}<option value="{{ name }}"></option>{% endfor %}
       </datalist>
       {{ form.model_name.errors }}
+      <div id="model-lookup" class="model-lookup"></div>
       <div class="scan-actions">
         <button type="button" class="secondary" data-scan-start>Scan with camera</button>
         <button type="button" class="secondary" data-scan-stop hidden>Stop camera</button>
