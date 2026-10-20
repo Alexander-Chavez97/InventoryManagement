@@ -24,6 +24,7 @@ from .forms import (
     StaffUserCreationForm,
 )
 from .models import (
+    Category,
     Item,
     ItemPhoto,
     ModelCatalog,
@@ -292,6 +293,56 @@ def scanner_intake(request):
     else:
         form = ScannerIntakeForm()
     return render(request, "inventory/intake.html", {"form": form, "catalog_names": _catalog_names()})
+
+
+@login_required
+def model_lookup(request):
+    """Looked up live as the intake form's model name changes (see
+    static/js/intake.js + the model_name field's hx- attrs in forms.py).
+    Shows whatever's already on record under that name so a repeat intake
+    doesn't silently create a parallel lot next to an existing one, and --
+    when every existing lot for this model agrees on one category -- auto-
+    fills category/subcategory/sub-subcategory instead of making the user
+    re-pick them. Location is deliberately left alone: the same model can
+    legitimately live in more than one bin."""
+    model_name = request.GET.get("model_name", "").strip()
+    matches = []
+    category = subcategory = subsubcategory = None
+
+    if model_name:
+        matches = list(
+            Item.objects.filter(model_name__iexact=model_name)
+            .select_related("subsubcategory__subcategory__category", "location")
+            .order_by("-updated_at")
+        )
+        leaf_ids = {item.subsubcategory_id for item in matches if item.subsubcategory_id}
+        if len(leaf_ids) == 1:
+            subsubcategory = matches[0].subsubcategory
+            subcategory = subsubcategory.subcategory
+            category = subcategory.category
+
+    return render(
+        request,
+        "inventory/partials/model_lookup.html",
+        {
+            "model_name": model_name,
+            "matches": matches,
+            "category": category,
+            "subcategory": subcategory,
+            "subsubcategory": subsubcategory,
+            "categories": Category.objects.order_by("name"),
+            "subcategories": (
+                Subcategory.objects.filter(category=category).order_by("name")
+                if category
+                else Subcategory.objects.none()
+            ),
+            "subsubcategories": (
+                SubSubcategory.objects.filter(subcategory=subcategory).order_by("name")
+                if subcategory
+                else SubSubcategory.objects.none()
+            ),
+        },
+    )
 
 
 @login_required
