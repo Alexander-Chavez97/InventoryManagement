@@ -62,7 +62,12 @@
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 280, height: 140 } },
           (decoded) => {
-            if (serial) serial.value = decoded.trim();
+            if (serial) {
+              serial.value = decoded.trim();
+              // The model-lookup field only listens for "change" -- setting
+              // .value from JS doesn't fire one on its own, so dispatch it.
+              serial.dispatchEvent(new Event("change", { bubbles: true }));
+            }
             if (status) status.textContent = "Scanned " + decoded;
             this.stop();
             serial?.focus();

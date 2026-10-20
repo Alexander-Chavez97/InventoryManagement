@@ -1,0 +1,39 @@
+{% if matches %}
+<div class="model-lookup-hit">
+  <p class="muted">
+    "{{ model_name }}" is already on record
+    {% if matches|length == 1 %}as:{% else %}across {{ matches|length }} lots:{% endif %}
+  </p>
+  <ul class="model-lookup-list">
+    {% for item in matches %}
+    <li>{{ item.quantity }} × {{ item.category_path }} — {{ item.get_status_display }}{% if item.location %}, {{ item.location }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% if not category %}
+  <p class="warning">These lots don't resolve to a single category automatically -- pick the right one below.</p>
+  {% endif %}
+</div>
+{% elif model_name %}
+<p class="muted">New model -- nothing on record yet under "{{ model_name }}".</p>
+{% endif %}
+
+{% if category %}
+<select name="category" id="id_category" required hx-get="{% url 'inventory:subcategory_options' %}" hx-target="#subcategory-wrapper" hx-swap="innerHTML" hx-trigger="change" hx-swap-oob="true">
+  <option value="">Select a category…</option>
+  {% for cat in categories %}
+  <option value="{{ cat.pk }}"{% if cat.pk == category.pk %} selected{% endif %}>{{ cat.name }}</option>
+  {% endfor %}
+</select>
+<select name="subcategory" id="id_subcategory" required hx-get="{% url 'inventory:subsubcategory_options' %}" hx-target="#subsubcategory-wrapper" hx-swap="innerHTML" hx-trigger="change" hx-swap-oob="true">
+  <option value="">Select a subcategory…</option>
+  {% for sub in subcategories %}
+  <option value="{{ sub.pk }}"{% if sub.pk == subcategory.pk %} selected{% endif %}>{{ sub.name }}</option>
+  {% endfor %}
+</select>
+<select name="subsubcategory" id="id_subsubcategory" required hx-swap-oob="true">
+  <option value="">Select a sub-subcategory…</option>
+  {% for ssc in subsubcategories %}
+  <option value="{{ ssc.pk }}"{% if ssc.pk == subsubcategory.pk %} selected{% endif %}>{{ ssc.name }}</option>
+  {% endfor %}
+</select>
+{% endif %}
