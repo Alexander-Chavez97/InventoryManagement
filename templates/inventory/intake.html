@@ -1,12 +1,16 @@
 {% extends "base.html" %} {% load static %} {% block title %}Scanner intake{% endblock %} {% block content %}
-<section class="card intake-card">
-  <h1>Phone / scanner intake</h1>
-  <p class="muted">
-    USB wedge scanners still type into the model name box. On a phone, use Scan with
-    camera, then attach photos.
-  </p>
-  {% include "inventory/partials/intake_fields.html" %}
-</section>
+<div class="intake-page">
+  <div class="intake-header">
+    <h1>Phone / Scanner Intake</h1>
+    <p class="muted">
+      USB wedge scanners still type into the model name box. On a phone, use Scan with
+      camera, then attach photos.
+    </p>
+  </div>
+  <section class="card intake-card">
+    {% include "inventory/partials/intake_fields.html" %}
+  </section>
+</div>
 {% endblock %} {% block extra_js %}
 <script src="{% static 'js/html5-qrcode.min.js' %}"></script>
 <script src="{% static 'js/intake.js' %}"></script>

@@ -17,6 +17,19 @@
 <p class="muted">New model -- nothing on record yet under "{{ model_name }}".</p>
 {% endif %}
 
+{% if catalog_entry and not matches %}
+<div class="model-lookup-hit model-lookup-vendor">
+  <p class="muted">
+    In the EPCOM catalog{% if catalog_entry.brand %} as a <strong>{{ catalog_entry.brand }}</strong>{% endif %}{% if catalog_entry.vendor_description %} -- {{ catalog_entry.vendor_description }}{% endif %}{% if catalog_entry.vendor_list_price %} (vendor list ${{ catalog_entry.vendor_list_price }}){% endif %}.
+  </p>
+  {% if category_source == "vendor" %}
+  <p class="muted">Category suggested from the EPCOM catalog below -- not confirmed inventory, so double-check it.</p>
+  {% elif not category %}
+  <p class="muted">EPCOM doesn't map this one to one of our categories -- pick it by hand below.</p>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if category %}
 <select name="category" id="id_category" required hx-get="{% url 'inventory:subcategory_options' %}" hx-target="#subcategory-wrapper" hx-swap="innerHTML" hx-trigger="change" hx-swap-oob="true">
   <option value="">Select a category…</option>

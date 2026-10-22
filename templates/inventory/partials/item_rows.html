@@ -1,26 +1,37 @@
+{% load inventory_extras %}
 {% if items %}
 <table class="inventory-table">
   <thead>
     <tr>
-      <th>Model name</th>
-      <th>Qty</th>
-      <th>Price</th>
+      <th>Product</th>
       <th>Category</th>
       <th>Status</th>
+      <th>Qty</th>
       <th>Location</th>
-      <th>Display name</th>
+      <th>Price</th>
     </tr>
   </thead>
   <tbody>
     {% for item in items %}
-    <tr>
-      <td data-label="Model name"><a href="{% url 'inventory:item_detail' item.pk %}">{{ item.model_name }}</a></td>
-      <td data-label="Qty">{{ item.quantity }}</td>
-      <td data-label="Price">{% if item.price is not None %}${{ item.price }}{% else %}—{% endif %}</td>
-      <td data-label="Category">{{ item.category_path }}</td>
-      <td data-label="Status"><span class="badge status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
-      <td data-label="Location">{{ item.location|default:"Unassigned" }}</td>
-      <td data-label="Display name" class="mono">{{ item.display_name }}</td>
+    <tr
+      class="row-clickable"
+      hx-get="{% url 'inventory:item_detail_panel' item.pk %}"
+      hx-target="#item-detail-content"
+      hx-swap="innerHTML"
+      hx-trigger="click"
+      hx-on::htmx:after-request="document.querySelectorAll('.inventory-table tr.selected').forEach(el => el.classList.remove('selected')); this.classList.add('selected')"
+    >
+      <td data-label="Product">
+        <div class="product-cell">
+          <span class="avatar-chip">{{ item.model_name|avatar_initials }}</span>
+          <a class="cell-strong" href="{% url 'inventory:item_detail' item.pk %}" onclick="event.stopPropagation()">{{ item.model_name }}</a>
+        </div>
+      </td>
+      <td data-label="Category" class="cell-muted">{{ item.category_path }}</td>
+      <td data-label="Status"><span class="badge status-{{ item.status|lower }}"><span class="badge-dot"></span>{{ item.get_status_display }}</span></td>
+      <td data-label="Qty" class="cell-strong cell-right">{{ item.quantity }}</td>
+      <td data-label="Location" class="cell-muted">{{ item.location|default:"Unassigned" }}</td>
+      <td data-label="Price" class="cell-strong cell-right">{% if item.price is not None %}${{ item.price }}{% else %}—{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
