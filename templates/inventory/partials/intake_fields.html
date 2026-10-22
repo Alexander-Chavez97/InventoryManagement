@@ -26,8 +26,8 @@
     {% csrf_token %}
     {{ form.non_field_errors }}
 
-    <div class="serial-row">
-      <label for="{{ form.model_name.id_for_label }}">Model name</label>
+    <div class="field-group" id="model-name-group">
+      <label class="field-label" for="{{ form.model_name.id_for_label }}">Model name</label>
       {{ form.model_name }}
       <datalist id="model-name-suggestions">
         {% for name in catalog_names %}<option value="{{ name }}"></option>{% endfor %}
@@ -42,51 +42,56 @@
       <p class="scan-status muted" data-scan-status></p>
     </div>
 
-    <p>
-      <label for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
-      {{ form.quantity }}
-      {{ form.quantity.errors }}
-    </p>
+    <div class="field-row">
+      <div class="field-group">
+        <label class="field-label" for="{{ form.quantity.id_for_label }}">{{ form.quantity.label }}</label>
+        {{ form.quantity }}
+        {{ form.quantity.errors }}
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="{{ form.price.id_for_label }}">{{ form.price.label }}</label>
+        {{ form.price }}
+        {{ form.price.errors }}
+      </div>
+    </div>
 
-    <p>
-      <label for="{{ form.price.id_for_label }}">{{ form.price.label }}</label>
-      {{ form.price }}
-      {{ form.price.errors }}
-    </p>
-
-    <p>
-      <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
+    <div class="field-group">
+      <label class="field-label" for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
       {{ form.category }}
       {{ form.category.errors }}
-    </p>
-    <p>
-      <label for="{{ form.subcategory.id_for_label }}">{{ form.subcategory.label }}</label>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="{{ form.subcategory.id_for_label }}">{{ form.subcategory.label }}</label>
       <div id="subcategory-wrapper">{{ form.subcategory }}</div>
       {{ form.subcategory.errors }}
-    </p>
-    <p>
-      <label for="{{ form.subsubcategory.id_for_label }}">{{ form.subsubcategory.label }}</label>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="{{ form.subsubcategory.id_for_label }}">{{ form.subsubcategory.label }}</label>
       <div id="subsubcategory-wrapper">{{ form.subsubcategory }}</div>
       {{ form.subsubcategory.errors }}
-    </p>
-    <p>
-      <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
-      {{ form.status }}
-      {{ form.status.errors }}
-    </p>
-    <p>
-      <label for="{{ form.location.id_for_label }}">{{ form.location.label }}</label>
-      {{ form.location }}
-      {{ form.location.errors }}
-    </p>
-    <p>
-      <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label class="field-label" for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+        {{ form.status }}
+        {{ form.status.errors }}
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="{{ form.location.id_for_label }}">{{ form.location.label }}</label>
+        {{ form.location }}
+        {{ form.location.errors }}
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
       {{ form.notes }}
       {{ form.notes.errors }}
-    </p>
+    </div>
 
     <div class="photo-block">
-      <p class="eyebrow">Photos</p>
+      <p class="photos-heading">Photos</p>
       <p class="muted">Use the phone camera for a barcode shot and item photos. You can add more than one.</p>
       <div class="scan-actions">
         <label class="secondary file-button">

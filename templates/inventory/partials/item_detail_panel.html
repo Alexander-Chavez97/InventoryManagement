@@ -1,0 +1,59 @@
+<div class="detail-panel-header">
+  <h2>Item Details</h2>
+  <button
+    type="button"
+    class="detail-panel-close"
+    aria-label="Close"
+    hx-get="{% url 'inventory:item_detail_panel_clear' %}"
+    hx-target="#item-detail-content"
+    hx-swap="innerHTML"
+  >&times;</button>
+</div>
+
+<div class="detail-photo">
+  {% with photo=item.photos.first %}
+  {% if photo %}
+  <img src="{{ photo.image.url }}" alt="{{ photo.get_kind_display }} photo of {{ item.model_name }}" />
+  {% else %}
+  <span>No photo</span>
+  {% endif %}
+  {% endwith %}
+</div>
+
+<h3 class="detail-title">{{ item.display_name }}</h3>
+<p class="detail-category">{{ item.category_path }}</p>
+<p><span class="badge status-{{ item.status|lower }}">{{ item.get_status_display }}</span></p>
+
+<div class="detail-actions">
+  <a class="primary" href="{% url 'inventory:item_detail' item.pk %}">Edit Item</a>
+  <a class="secondary" href="{% url 'inventory:order_new' %}">Ship Item</a>
+</div>
+
+<dl>
+  <div class="detail-meta-row">
+    <dt>Quantity</dt>
+    <dd>{{ item.quantity }} unit{{ item.quantity|pluralize }}</dd>
+  </div>
+  <div class="detail-meta-row">
+    <dt>Location</dt>
+    <dd>{{ item.location|default:"Unassigned" }}</dd>
+  </div>
+  <div class="detail-meta-row">
+    <dt>Unit Price</dt>
+    <dd>{% if item.price is not None %}${{ item.price }}{% else %}—{% endif %}</dd>
+  </div>
+</dl>
+
+<div class="detail-history">
+  <h3>Status History</h3>
+  {% if history %}
+  {% for event in history %}
+  <div class="detail-history-item">
+    <strong>{{ event.changed_at|date:"M j, Y" }}</strong><br />
+    <span class="muted">{{ event.old_label }} &rarr; {{ event.new_label }}{% if event.changed_by %} &middot; {{ event.changed_by.username }}{% endif %}</span>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="empty">No history yet.</p>
+  {% endif %}
+</div>

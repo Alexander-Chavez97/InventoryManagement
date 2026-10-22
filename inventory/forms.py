@@ -222,7 +222,14 @@ class ItemFilterForm(forms.Form):
         label="Show out-of-stock items",
     )
 
-class StaffUserCreationForm(UserCreationForm):
+class SupervisorUserCreationForm(UserCreationForm):
+    """Creates a Supervisor account -- the only account tier anyone can
+    self-service create in the app. Owner accounts (is_staff=is_superuser=
+    True, full Django admin + staff-management access) are never created
+    here; they're provisioned out of band (e.g. `createsuperuser`), same as
+    today. See create_staff_user() in views.py, which also force-clears
+    is_staff/is_superuser after save as a second layer of defense."""
+
     class Meta(UserCreationForm):
         model = User
         fields = ("username", "first_name", "last_name", "email")
@@ -242,6 +249,44 @@ class OrderHeaderForm(forms.ModelForm):
             "job_reference": forms.TextInput(attrs={"placeholder": "PO number, job name, etc. (optional)"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
+
+
+class OrderFilterForm(forms.Form):
+    q = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "Search order #, client, or email",
+                "autocomplete": "off",
+                "class": "scan-input",
+            }
+        ),
+    )
+    model = forms.CharField(
+        required=False,
+        label="Model",
+        widget=forms.TextInput(attrs={"placeholder": "Item model name"}),
+    )
+    min_items = forms.IntegerField(
+        required=False,
+        min_value=0,
+        label="Min items",
+        widget=forms.NumberInput(attrs={"placeholder": "Min"}),
+    )
+    max_items = forms.IntegerField(
+        required=False,
+        min_value=0,
+        label="Max items",
+        widget=forms.NumberInput(attrs={"placeholder": "Max"}),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        min_items = cleaned.get("min_items")
+        max_items = cleaned.get("max_items")
+        if min_items is not None and max_items is not None and min_items > max_items:
+            raise forms.ValidationError("Min items can't be greater than max items.")
+        return cleaned
 
 
 class ItemQuantitySelect(forms.Select):

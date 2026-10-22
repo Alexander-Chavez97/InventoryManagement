@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:"Novastar IMS Admin" }}{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@1,700&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="{% static 'css/admin-theme.css' %}" />
+{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <a href="{% url 'admin:index' %}" class="novastar-admin-brand">
+    <span class="novastar-admin-brand-title">NOVASTAR</span>
+    <span class="novastar-admin-brand-sub">{{ site_header|default:"Admin" }}</span>
+  </a>
+</div>
+<a href="{% url 'inventory:item_list' %}" class="novastar-admin-back">&larr; Back to Inventory</a>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

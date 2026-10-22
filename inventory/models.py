@@ -5,7 +5,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.db import models
+from django.db import IntegrityError, models, transaction
+from django.utils import timezone
 from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,15 @@ class ModelNamePattern(models.Model):
 class ModelCatalog(models.Model):
     """The running list of model names known to be real -- every name an
     item has ever been recorded under -- so the intake form can suggest
-    from it, and a newly typed name can be sanity-checked against it."""
+    from it, and a newly typed name can be sanity-checked against it.
+
+    The fields below `added_at` are vendor reference data (currently
+    populated from an EPCOM product export via the `import_epcom_catalog`
+    management command, see inventory/management/commands/). They let the
+    intake form auto-fill a category for a model that's brand new to this
+    inventory but already known from the vendor catalog -- see
+    `suggested_subsubcategory` and its use in views.model_lookup. None of
+    this ever touches a real Item record directly."""
 
     name = models.CharField(max_length=100, unique=True, db_index=True)
     matched_pattern = models.ForeignKey(
@@ -57,6 +66,22 @@ class ModelCatalog(models.Model):
         help_text="Didn't match any known naming pattern when it was first entered.",
     )
     added_at = models.DateTimeField(auto_now_add=True)
+
+    from_vendor_catalog = models.BooleanField(
+        default=False,
+        help_text="Imported from a vendor product export (e.g. EPCOM) rather than entered by hand through intake.",
+    )
+    brand = models.CharField(max_length=100, blank=True)
+    vendor_description = models.CharField(max_length=500, blank=True)
+    vendor_list_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    suggested_subsubcategory = models.ForeignKey(
+        "SubSubcategory",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="Advisory only -- a category leaf suggested by the vendor catalog import, used to pre-fill intake for a model never recorded here before. Never authoritative the way Item.subsubcategory is.",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -378,11 +403,51 @@ class ItemPhoto(models.Model):
             )
 
 
+class OrderSequence(models.Model):
+    """One row per calendar month ("YYMM"), tracking the last XXXX used in
+    that month's Order.order_number values (ORD-YYMM-XXXX). Allocating a
+    number locks this row (not the Order table) so concurrent order
+    creation can never hand out the same number twice, and a new month
+    just starts a fresh row back at 0001."""
+
+    year_month = models.CharField(max_length=4, unique=True)
+    last_seq = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.year_month} -> {self.last_seq:04d}"
+
+    @classmethod
+    def next_order_number(cls, *, when=None):
+        """Allocate and return the next ORD-YYMM-XXXX string for `when`
+        (defaults to now). Must be called from inside the same
+        transaction.atomic() block that goes on to create the Order, same
+        as the stock-locking already done in order_new."""
+        when = when or timezone.localtime(timezone.now())
+        year_month = when.strftime("%y%m")
+        for _attempt in range(3):
+            try:
+                with transaction.atomic():
+                    seq_row, _created = cls.objects.select_for_update().get_or_create(
+                        year_month=year_month, defaults={"last_seq": 0}
+                    )
+                    seq_row.last_seq += 1
+                    seq_row.save(update_fields=["last_seq"])
+                    return f"ORD-{year_month}-{seq_row.last_seq:04d}"
+            except IntegrityError:
+                # Two requests raced to create the first row of a new
+                # month -- one of the get_or_create()s lost the unique
+                # race. Retry; the row now exists so the next pass locks
+                # and increments it normally.
+                continue
+        raise RuntimeError("Could not allocate an order number -- too much contention.")
+
+
 class Order(models.Model):
     """A single outbound order: a set of items sent to one client/job,
     with an emailed notice of what went out. The client is not a saved
     record -- just a name/email typed in on the order form each time."""
 
+    order_number = models.CharField(max_length=20, unique=True, editable=False)
     client_name = models.CharField(max_length=150)
     client_email = models.EmailField()
     job_reference = models.CharField(
@@ -399,7 +464,7 @@ class Order(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"Order #{self.pk} to {self.client_name}"
+        return f"{self.order_number} -- {self.client_name}"
 
     @property
     def email_delivered(self):

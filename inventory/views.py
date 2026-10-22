@@ -6,9 +6,12 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from openpyxl import Workbook
+from openpyxl.styles import Font
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -16,18 +19,20 @@ from django.views.decorators.http import require_POST
 from .forms import (
     ItemFilterForm,
     ItemPhotoForm,
+    OrderFilterForm,
     OrderHeaderForm,
     OrderLineFormSet,
     ScannerIntakeForm,
     SplitStatusForm,
     StatusChangeForm,
-    StaffUserCreationForm,
+    SupervisorUserCreationForm,
 )
 from .models import (
     Category,
     Item,
     ItemPhoto,
     ModelCatalog,
+    OrderSequence,
     Order,
     OrderLine,
     Subcategory,
@@ -98,6 +103,7 @@ def _item_list_context(request):
         "page_obj": page_obj,
         "paginator": paginator,
         "counts": counts,
+        "category_count": Category.objects.count(),
     }
 
 
@@ -107,6 +113,76 @@ def item_list(request):
     if request.htmx:
         return render(request, "inventory/partials/item_results.html", context)
     return render(request, "inventory/item_list.html", context)
+
+
+def _xlsx_response(filename, headers, rows):
+    """Build a one-sheet .xlsx download from already-fetched header/row
+    data. Shared by item_export/order_export -- bold header row, columns
+    sized to fit their content, and a Content-Disposition that makes the
+    browser download it instead of trying to render it in place."""
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(headers)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    for row in rows:
+        sheet.append(row)
+
+    for column_cells in sheet.columns:
+        longest = max((len(str(cell.value)) if cell.value is not None else 0) for cell in column_cells)
+        sheet.column_dimensions[column_cells[0].column_letter].width = min(max(longest + 2, 10), 40)
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    workbook.save(response)
+    return response
+
+
+@login_required
+def item_export(request):
+    """Same filters as the inventory search page (see _filtered_items) --
+    exports exactly what's currently in view there, not the whole table."""
+    _, items, _ = _filtered_items(request)
+    headers = ["Model Name", "Category", "Status", "Quantity", "Location", "Price", "Updated"]
+    rows = [
+        [
+            item.model_name,
+            item.category_path,
+            item.get_status_display(),
+            item.quantity,
+            str(item.location) if item.location_id else "",
+            float(item.price) if item.price is not None else None,
+            timezone.localtime(item.updated_at).strftime("%Y-%m-%d %H:%M"),
+        ]
+        for item in items
+    ]
+    timestamp = timezone.localtime(timezone.now()).strftime("%Y%m%d-%H%M")
+    return _xlsx_response(f"inventory-search-{timestamp}.xlsx", headers, rows)
+
+
+@login_required
+def order_export(request):
+    """Same filters as the order list page (see _filtered_orders) --
+    exports exactly what's currently in view there, not every order."""
+    _, orders = _filtered_orders(request)
+    headers = ["Order #", "Date", "Client Name", "Client Email", "Job Reference", "Items", "Email Sent", "Created By"]
+    rows = [
+        [
+            order.order_number,
+            timezone.localtime(order.created_at).strftime("%Y-%m-%d"),
+            order.client_name,
+            order.client_email,
+            order.job_reference,
+            order.item_count,
+            "Yes" if order.email_delivered else "No",
+            str(order.created_by) if order.created_by_id else "",
+        ]
+        for order in orders
+    ]
+    timestamp = timezone.localtime(timezone.now()).strftime("%Y%m%d-%H%M")
+    return _xlsx_response(f"orders-{timestamp}.xlsx", headers, rows)
 
 
 @login_required
@@ -150,6 +226,41 @@ def item_detail(request, pk):
             "split_form": SplitStatusForm(item=item),
         },
     )
+
+
+@login_required
+def item_detail_panel(request, pk):
+    """Rendered into the item list's right-hand rail when a row is clicked --
+    a trimmed-down view of item_detail for quick glancing without leaving
+    the search results."""
+    item = get_object_or_404(
+        Item.objects.select_related(
+            "location", "subsubcategory__subcategory__category"
+        ).prefetch_related("status_history__changed_by", "photos"),
+        pk=pk,
+    )
+    status_labels = dict(Item.STATUS_CHOICES)
+    history = [
+        {
+            "old_label": status_labels.get(event.old_status, event.old_status)
+            if event.old_status
+            else "Created",
+            "new_label": status_labels.get(event.new_status, event.new_status),
+            "changed_at": event.changed_at,
+            "changed_by": event.changed_by,
+        }
+        for event in item.status_history.all()
+    ]
+    return render(
+        request,
+        "inventory/partials/item_detail_panel.html",
+        {"item": item, "history": history},
+    )
+
+
+@login_required
+def item_detail_panel_clear(request):
+    return render(request, "inventory/partials/item_detail_empty.html", {})
 
 
 @login_required
@@ -308,6 +419,8 @@ def model_lookup(request):
     model_name = request.GET.get("model_name", "").strip()
     matches = []
     category = subcategory = subsubcategory = None
+    category_source = None
+    catalog_entry = None
 
     if model_name:
         matches = list(
@@ -320,6 +433,22 @@ def model_lookup(request):
             subsubcategory = matches[0].subsubcategory
             subcategory = subsubcategory.subcategory
             category = subcategory.category
+            category_source = "inventory"
+
+        # No single authoritative category from our own records (either this
+        # model has never been seen, or existing lots disagree) -- fall back
+        # to the EPCOM vendor catalog. Advisory only: ModelCatalog.brand /
+        # vendor_description / vendor_list_price / suggested_subsubcategory
+        # are never treated as confirmed inventory, so the template always
+        # shows this as a suggestion to double-check rather than a fact.
+        catalog_entry = ModelCatalog.objects.filter(name__iexact=model_name).select_related(
+            "suggested_subsubcategory__subcategory__category"
+        ).first()
+        if category is None and catalog_entry and catalog_entry.suggested_subsubcategory:
+            subsubcategory = catalog_entry.suggested_subsubcategory
+            subcategory = subsubcategory.subcategory
+            category = subcategory.category
+            category_source = "vendor"
 
     return render(
         request,
@@ -330,6 +459,8 @@ def model_lookup(request):
             "category": category,
             "subcategory": subcategory,
             "subsubcategory": subsubcategory,
+            "category_source": category_source,
+            "catalog_entry": catalog_entry,
             "categories": Category.objects.order_by("name"),
             "subcategories": (
                 Subcategory.objects.filter(category=category).order_by("name")
@@ -393,22 +524,32 @@ def quick_status(request, pk):
     return redirect("inventory:item_list")
 
 def _is_admin(user):
+    """Owner-only gate. Owner == is_staff (so Django admin login works) and
+    is_superuser (so admin permissions aren't a separate thing to manage)
+    together -- see the UserAdmin override in admin.py, which keeps those
+    two flags in lockstep going forward so there's never a third, hybrid
+    tier. Checking is_staff alone is enough here since nothing in this app
+    can produce is_staff=True without is_superuser=True also being true."""
     return user.is_staff
 
 @login_required
 @user_passes_test(_is_admin)
 def create_staff_user(request):
+    """Owner-only: create a new Supervisor account. Supervisor is the only
+    tier this view (or any in-app UI) can create -- full day-to-day access
+    to intake/orders/search, never Django admin or the ability to create
+    more accounts. Owner accounts are provisioned out of band."""
     if request.method == "POST":
-        form = StaffUserCreationForm(request.POST)
+        form = SupervisorUserCreationForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
-            user.is_staff = False # belt-and-suspenders: this view can never create an admin
+            user.is_staff = False # belt-and-suspenders: this view can never create an Owner
             user.is_superuser = False
             user.save()
-            messages.success(request, f"Staff account created for {user.username}.")
+            messages.success(request, f"Supervisor account created for {user.username}.")
             return redirect("inventory:create_staff")
     else:
-        form = StaffUserCreationForm()
+        form = SupervisorUserCreationForm()
     return render(request, "inventory/create_staff.html", {"form": form})
 
 
@@ -436,7 +577,7 @@ def _send_order_email(order):
         "inventory/email/order_notice.txt",
         {"order": order, "lines": order.lines.select_related("item")},
     )
-    subject = "Order notice"
+    subject = f"Order {order.order_number}"
     if order.job_reference:
         subject = f"{subject} - {order.job_reference}"
     try:
@@ -521,6 +662,7 @@ def order_new(request):
                     locked_lines.append((fresh_item, qty))
 
                 order = Order.objects.create(
+                    order_number=OrderSequence.next_order_number(),
                     client_name=header_form.cleaned_data["client_name"],
                     client_email=header_form.cleaned_data["client_email"],
                     job_reference=header_form.cleaned_data["job_reference"],
@@ -558,10 +700,57 @@ def order_new(request):
     )
 
 
+ORDERS_PER_PAGE = 25
+
+
+def _filtered_orders(request):
+    form = OrderFilterForm(request.GET)
+    orders = (
+        Order.objects.select_related("created_by")
+        .prefetch_related("lines__item")
+        .annotate(item_count=Coalesce(Sum("lines__quantity_shipped"), 0))
+    )
+    if form.is_valid():
+        query = form.cleaned_data.get("q")
+        model = form.cleaned_data.get("model")
+        min_items = form.cleaned_data.get("min_items")
+        max_items = form.cleaned_data.get("max_items")
+        if query:
+            query = query.strip()
+            orders = orders.filter(
+                Q(order_number__icontains=query)
+                | Q(client_name__icontains=query)
+                | Q(client_email__icontains=query)
+                | Q(job_reference__icontains=query)
+            )
+        if model:
+            orders = orders.filter(lines__item__model_name__icontains=model.strip()).distinct()
+        if min_items is not None:
+            orders = orders.filter(item_count__gte=min_items)
+        if max_items is not None:
+            orders = orders.filter(item_count__lte=max_items)
+    return form, orders
+
+
+def _order_list_context(request):
+    form, orders = _filtered_orders(request)
+    paginator = Paginator(orders, ORDERS_PER_PAGE)
+    page_number = request.GET.get("page") or 1
+    page_obj = paginator.get_page(page_number)
+    return {
+        "filter_form": form,
+        "orders": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
+    }
+
+
 @login_required
 def order_list(request):
-    orders = Order.objects.select_related("created_by").prefetch_related("lines__item")
-    return render(request, "inventory/order_list.html", {"orders": orders})
+    context = _order_list_context(request)
+    if request.htmx:
+        return render(request, "inventory/partials/order_rows.html", context)
+    return render(request, "inventory/order_list.html", context)
 
 
 @login_required

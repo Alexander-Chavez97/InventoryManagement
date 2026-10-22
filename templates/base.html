@@ -4,41 +4,69 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content="{{ csrf_token }}" />
-    <title>{% block title %}Inventory{% endblock %}</title>
+    <title>{% block title %}Inventory{% endblock %} · Novastar IMS</title>
     {% load static %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@1,700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="{% static 'css/app.css' %}" />
     <script src="{% static 'js/htmx.min.js' %}" defer></script>
   </head>
   <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    <header class="topbar">
-      <a class="brand" href="{% url 'inventory:item_list' %}">Inventory</a>
+    <div class="shell">
       {% if user.is_authenticated %}
-      <nav>
-        <a href="{% url 'inventory:item_list' %}">Search</a>
-        <a href="{% url 'inventory:intake' %}">Scanner intake</a>
-        <a href="{% url 'inventory:order_list' %}">Orders</a>
-        <a href="{% url 'password_change' %}">Change password</a>
-        {% if user.is_staff %}
-        <a href="{% url 'admin:index' %}">Admin</a>
-        <a href="{% url 'inventory:create_staff' %}">Add Staff</a>
-        {% endif %}
-      </nav>
-      <form method="post" action="{% url 'logout' %}" class="logout-form">
-        {% csrf_token %}
-        <button type="submit">Sign out {{ user.username }}</button>
-      </form>
+      <aside class="sidebar">
+        <a class="brand" href="{% url 'inventory:item_list' %}">
+          <span class="brand-title">NOVASTAR</span>
+          <span class="brand-sub">COMMUNICATIONS</span>
+        </a>
+        <nav class="sidebar-nav">
+          <a class="nav-item{% if request.resolver_match.url_name == 'item_list' %} active{% endif %}" href="{% url 'inventory:item_list' %}">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4" stroke-linecap="round"/></svg>
+            Search
+          </a>
+          <a class="nav-item{% if request.resolver_match.url_name == 'intake' %} active{% endif %}" href="{% url 'inventory:intake' %}">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="16" height="12" rx="1.5"/><path d="M5 8v4M8 7v6M11 8v4M14 7v6" stroke-linecap="round"/></svg>
+            Scanner Intake
+          </a>
+          <a class="nav-item{% if request.resolver_match.url_name == 'order_list' or request.resolver_match.url_name == 'order_new' or request.resolver_match.url_name == 'order_detail' %} active{% endif %}" href="{% url 'inventory:order_list' %}">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 7h6M7 10h6M7 13h4" stroke-linecap="round"/></svg>
+            Orders
+          </a>
+          {% if user.is_staff %}
+          <a class="nav-item" href="{% url 'admin:index' %}">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2l6 2.5v4.6c0 4-2.6 6.7-6 8-3.4-1.3-6-4-6-8V4.5L10 2z"/></svg>
+            Admin
+          </a>
+          <a class="nav-item{% if request.resolver_match.url_name == 'create_staff' %} active{% endif %}" href="{% url 'inventory:create_staff' %}">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="7" r="3"/><path d="M2.5 17c0-3 2.5-5 5.5-5s5.5 2 5.5 5M15 7h4M17 5v4" stroke-linecap="round"/></svg>
+            Add Supervisor
+          </a>
+          {% endif %}
+        </nav>
+        <div class="sidebar-footer">
+          <form method="post" action="{% url 'logout' %}" class="logout-form">
+            {% csrf_token %}
+            <button type="submit" class="logout-btn">Sign out {{ user.username }}{% if user.is_superuser %} (Owner){% else %} (Supervisor){% endif %}</button>
+          </form>
+          <a class="change-password-link" href="{% url 'password_change' %}">Change password</a>
+        </div>
+      </aside>
       {% endif %}
-    </header>
 
-    <main class="page">
-      {% if messages %}
-      <ul class="messages">
-        {% for message in messages %}
-        <li class="{{ message.tags }}">{{ message }}</li>
-        {% endfor %}
-      </ul>
-      {% endif %} {% block content %}{% endblock %}
-    </main>
+      <main class="page">
+        {% if messages %}
+        <ul class="messages">
+          {% for message in messages %}
+          <li class="{{ message.tags }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %} {% block content %}{% endblock %}
+      </main>
+    </div>
     {% block extra_js %}{% endblock %}
   </body>
 </html>

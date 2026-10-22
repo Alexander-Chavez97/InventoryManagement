@@ -1,6 +1,22 @@
 <section class="stats" id="item-stats"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <div class="stat"><span>{{ counts.total }}</span> total</div>
-  <div class="stat"><span>{{ counts.active }}</span> active</div>
-  <div class="stat"><span>{{ counts.parts }}</span> for parts</div>
-  <div class="stat"><span>{{ counts.review }}</span> pending review</div>
+  <div class="stat-card">
+    <p class="stat-label">Total items</p>
+    <p class="stat-value">{{ counts.total }}</p>
+    <p class="stat-caption">Across {{ category_count }} categor{{ category_count|pluralize:"y,ies" }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">Active</p>
+    <p class="stat-value">{{ counts.active }}</p>
+    <p class="stat-caption">Currently in service</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">For parts</p>
+    <p class="stat-value">{{ counts.parts }}</p>
+    <p class="stat-caption">Awaiting repair or reuse</p>
+  </div>
+  <div class="stat-card">
+    <p class="stat-label">Pending review</p>
+    <p class="stat-value">{{ counts.review }}</p>
+    <p class="stat-caption">Awaiting categorization</p>
+  </div>
 </section>

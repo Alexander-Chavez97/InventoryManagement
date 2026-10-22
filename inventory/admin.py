@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import User
 
 from .models import (
     Category,
@@ -13,6 +15,39 @@ from .models import (
     Subcategory,
     SubSubcategory,
 )
+
+# Re-skin the built-in admin site with our own branding instead of the
+# default "Django administration" chrome -- see templates/admin/base_site.html
+# and static/css/admin-theme.css for the rest of the theme.
+admin.site.site_header = "Novastar IMS Admin"
+admin.site.site_title = "Novastar IMS Admin"
+admin.site.index_title = "Catalog & records administration"
+
+
+# Only two account tiers exist in this app: Supervisor (full day-to-day
+# ops; is_staff=False, is_superuser=False) and Owner (everything, including
+# this admin site and the ability to create Supervisor accounts;
+# is_staff=True, is_superuser=True -- see _is_admin() in views.py). Nothing
+# in the app's own UI can create a third, hybrid tier (create_staff_user()
+# always forces both flags False), but the stock Django User admin lets an
+# Owner tick "Staff status" without "Superuser status" or vice versa. This
+# override keeps the two flags in lockstep no matter what's submitted here,
+# so that hybrid tier can't be created through this screen either.
+admin.site.unregister(User)
+
+
+@admin.register(User)
+class LockstepUserAdmin(UserAdmin):
+    @admin.display(description="Role", ordering="is_superuser")
+    def role(self, obj):
+        return "Owner" if obj.is_superuser else "Supervisor"
+
+    def get_list_display(self, request):
+        return ("username", "email", "first_name", "last_name", "role", "is_active")
+
+    def save_model(self, request, obj, form, change):
+        obj.is_staff = obj.is_superuser
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(Location)
