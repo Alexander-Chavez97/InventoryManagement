@@ -82,11 +82,16 @@ jobs:
           fetch-depth: 0 # gitleaks needs real history to scan, not just the latest commit
 
       - name: Gitleaks scan
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # No GITLEAKS_LICENSE needed -- that's only required for
-          # organization-owned repos; this one's on a personal account.
+        # Runs the gitleaks CLI directly instead of gitleaks/gitleaks-action --
+        # that action requires a paid GITLEAKS_LICENSE secret for any
+        # organization-owned repo (gitleaks-action v2+). The plain CLI binary
+        # is MIT-licensed and free regardless of account type; this just
+        # calls it ourselves. Version pinned to what's been verified locally.
+        run: |
+          curl -sSL -o /tmp/gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --config .gitleaks.toml --redact -v
 
   deploy:
     needs: [test, secret-scan]
