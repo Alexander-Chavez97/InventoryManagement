@@ -1,0 +1,165 @@
+/* ---------------------------------------------------------------------
+   Meridian IMS -- Django admin theme
+   Re-skins the built-in admin with our own palette and type instead of
+   rebuilding every admin screen from scratch. We force the same branded
+   values for the light/dark/auto variable sets Django ships (see
+   django/contrib/admin/static/admin/css/{base,dark_mode}.css) since the
+   rest of the app only has one, always-light look -- the admin's
+   light/dark toggle stays in place but intentionally renders the same
+   branded theme either way.
+   --------------------------------------------------------------------- */
+
+html[data-theme="light"],
+html[data-theme="dark"],
+:root {
+  --primary: #000080;
+  --secondary: #111111;
+  --accent: #e03333;
+  --primary-fg: #ffffff;
+
+  --body-fg: #111111;
+  --body-bg: #ffffff;
+  --body-quiet-color: #808080;
+  --body-medium-color: #4d4d4d;
+  --body-loud-color: #000000;
+
+  --header-color: #ffffff;
+  --header-branding-color: var(--accent);
+  --header-bg: var(--secondary);
+  --header-link-color: #ffffff;
+
+  --breadcrumbs-fg: #d8d8f0;
+  --breadcrumbs-link-fg: var(--body-bg);
+  --breadcrumbs-bg: #800000;
+
+  --link-fg: #000080;
+  --link-hover-color: #050066;
+  --link-selected-fg: #800000;
+
+  --hairline-color: #e2e4e9;
+  --border-color: #808080;
+
+  --error-fg: #9b1c1c;
+
+  --message-success-bg: #e6e6f5;
+  --message-warning-bg: #fdf3e4;
+  --message-error-bg: #fdeaea;
+
+  --darkened-bg: #f3f4f6;
+  --selected-bg: #eef0fa;
+  --selected-row: #f5e9e9;
+
+  --button-fg: #ffffff;
+  --button-bg: #800000;
+  --button-hover-bg: #660000;
+  --default-button-bg: #111111;
+  --default-button-hover-bg: #2b2b2b;
+  --close-button-bg: #808080;
+  --close-button-hover-bg: #666666;
+  --delete-button-bg: #9b1c1c;
+  --delete-button-hover-bg: #7a1616;
+
+  --object-tools-fg: var(--button-fg);
+  --object-tools-bg: var(--close-button-bg);
+  --object-tools-hover-bg: var(--close-button-hover-bg);
+
+  --font-family-primary: 'Inter', "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #000080;
+    --secondary: #111111;
+    --accent: #e03333;
+    --primary-fg: #ffffff;
+
+    --body-fg: #111111;
+    --body-bg: #ffffff;
+    --body-quiet-color: #808080;
+    --body-medium-color: #4d4d4d;
+    --body-loud-color: #000000;
+
+    --breadcrumbs-fg: #d8d8f0;
+    --breadcrumbs-link-fg: var(--body-bg);
+    --breadcrumbs-bg: #800000;
+
+    --link-fg: #000080;
+    --link-hover-color: #050066;
+    --link-selected-fg: #800000;
+
+    --hairline-color: #e2e4e9;
+    --border-color: #808080;
+
+    --error-fg: #9b1c1c;
+
+    --darkened-bg: #f3f4f6;
+    --selected-bg: #eef0fa;
+    --selected-row: #f5e9e9;
+
+    --close-button-bg: #808080;
+    --close-button-hover-bg: #666666;
+
+    color-scheme: light;
+  }
+}
+
+/* ---------- Header / branding ---------- */
+
+#header {
+  padding: 14px 24px;
+}
+
+.meridian-admin-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-decoration: none !important;
+}
+.meridian-admin-brand-title {
+  font-family: 'Crimson Text', Georgia, serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accent);
+}
+.meridian-admin-brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+.meridian-admin-back {
+  display: inline-block;
+  margin-left: 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75) !important;
+  text-decoration: none !important;
+}
+.meridian-admin-back:hover {
+  color: #ffffff !important;
+  text-decoration: underline !important;
+}
+
+#user-tools {
+  font-size: 13px;
+}
+
+/* ---------- Buttons / inputs ---------- */
+
+.button,
+input[type="submit"],
+input[type="button"],
+.submit-row input,
+a.button {
+  border-radius: 8px;
+}
+
+.module h2,
+.module caption,
+.inline-group h2 {
+  border-radius: 0;
+}

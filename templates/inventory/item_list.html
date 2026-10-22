@@ -1,34 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Inventory search{% endblock %}
 {% block content %}
-<section class="hero">
-  <div>
-    <h1>Inventory hub</h1>
-    <p class="muted">Search by serial, filter by status, or jump to scanner intake.</p>
+<div class="list-with-panel">
+  <div class="list-main">
+    <section class="hero">
+      <div>
+        <h1>Inventory Search</h1>
+        <p class="muted">Manage and track all equipment inventory</p>
+      </div>
+      <a class="primary" href="{% url 'inventory:intake' %}">New Intake</a>
+    </section>
+
+    {% include "inventory/partials/item_stats.html" %}
+
+    <form
+      id="filter-form"
+      class="filters"
+      method="get"
+      hx-get="{% url 'inventory:item_list' %}"
+      hx-target="#item-results"
+      hx-swap="innerHTML"
+      hx-trigger="input delay:200ms, change"
+    >
+      {{ filter_form.q }}
+      {{ filter_form.status }}
+      {{ filter_form.category }}
+      <label style="display: flex; align-items: center; gap: 0.5rem;">
+        {{ filter_form.include_out_of_stock.label }} {{ filter_form.include_out_of_stock }}
+      </label>
+      <button type="submit" formaction="{% url 'inventory:item_export' %}" class="secondary" title="Export the items currently matching these filters">Export .xlsx</button>
+    </form>
+
+    <div id="item-results">
+      {% include "inventory/partials/item_rows.html" %}
+    </div>
   </div>
-  <a class="primary" href="{% url 'inventory:intake' %}">New intake</a>
-</section>
 
-{% include "inventory/partials/item_stats.html" %}
-
-<form
-  id="filter-form"
-  class="filters"
-  method="get"
-  hx-get="{% url 'inventory:item_list' %}"
-  hx-target="#item-results"
-  hx-swap="innerHTML"
-  hx-trigger="input delay:200ms, change"
->
-  {{ filter_form.q }}
-  {{ filter_form.status }}
-  {{ filter_form.category }}
-  <label style="display: flex; align-items: center; gap: 0.5rem;">
-    {{ filter_form.include_out_of_stock.label }} {{ filter_form.include_out_of_stock }}
-  </label>
-</form>
-
-<div id="item-results">
-  {% include "inventory/partials/item_rows.html" %}
+  <aside class="detail-panel" id="item-detail-panel">
+    <div id="item-detail-content">
+      {% include "inventory/partials/item_detail_empty.html" %}
+    </div>
+  </aside>
 </div>
 {% endblock %}

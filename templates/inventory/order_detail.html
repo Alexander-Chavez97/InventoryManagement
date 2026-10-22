@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Order #{{ order.pk }}{% endblock %}
+{% block title %}{{ order.order_number }}{% endblock %}
 {% block content %}
 <p><a href="{% url 'inventory:order_list' %}">← All orders</a></p>
 <section class="card">
-  <p class="eyebrow">Order #{{ order.pk }}</p>
+  <p class="eyebrow">{{ order.order_number }}</p>
   <h1>To {{ order.client_name }}</h1>
   <dl class="meta">
     <div>

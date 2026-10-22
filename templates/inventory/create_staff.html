@@ -1,7 +1,8 @@
 {% extends "base.html" %} {% block content %}
-<h1>Add staff account</h1>
+<h1>Add Supervisor account</h1>
+<p class="muted">Supervisor accounts get full day-to-day access -- intake, orders, search -- never Django admin or the ability to create other accounts. Owner accounts aren't created here.</p>
 <form method="post">
   {% csrf_token %} {{ form.as_p }}
-  <button type="submit">Create account</button>
+  <button type="submit">Create Supervisor account</button>
 </form>
 {% endblock %}

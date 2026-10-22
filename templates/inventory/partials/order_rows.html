@@ -1,0 +1,54 @@
+{% if orders %}
+<table class="inventory-table">
+  <thead>
+    <tr>
+      <th>Order #</th>
+      <th>Date</th>
+      <th>Client</th>
+      <th>Job reference</th>
+      <th>Items</th>
+      <th>Email</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for order in orders %}
+    <tr>
+      <td data-label="Order #"><a class="cell-strong" href="{% url 'inventory:order_detail' order.pk %}">{{ order.order_number }}</a></td>
+      <td data-label="Date" class="cell-muted">{{ order.created_at|date:"M j, Y" }}</td>
+      <td data-label="Client" class="cell-strong">{{ order.client_name }}</td>
+      <td data-label="Job reference" class="cell-muted">{{ order.job_reference|default:"—" }}</td>
+      <td data-label="Items" class="cell-strong cell-right">{{ order.item_count }}</td>
+      <td data-label="Email">
+        {% if order.email_delivered %}
+        <span class="badge status-active"><span class="badge-dot"></span>Sent</span>
+        {% else %}
+        <span class="badge status-review"><span class="badge-dot"></span>Not sent</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if paginator and paginator.num_pages > 1 %}
+<nav class="pagination" aria-label="Pagination">
+  {% if page_obj.has_previous %}
+  <a href="?page={{ page_obj.previous_page_number }}"
+     hx-get="{% url 'inventory:order_list' %}?page={{ page_obj.previous_page_number }}"
+     hx-target="#order-results"
+     hx-swap="innerHTML"
+     hx-include="#order-filter-form">&larr; Prev</a>
+  {% endif %}
+  <span class="page-info">Page {{ page_obj.number }} of {{ paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a href="?page={{ page_obj.next_page_number }}"
+     hx-get="{% url 'inventory:order_list' %}?page={{ page_obj.next_page_number }}"
+     hx-target="#order-results"
+     hx-swap="innerHTML"
+     hx-include="#order-filter-form">Next &rarr;</a>
+  {% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p class="empty">No orders match this search.</p>
+{% endif %}

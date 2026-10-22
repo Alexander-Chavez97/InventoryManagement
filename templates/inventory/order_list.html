@@ -9,36 +9,24 @@
   <a class="primary" href="{% url 'inventory:order_new' %}">New order</a>
 </section>
 
-{% if orders %}
-<table class="inventory-table">
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Client</th>
-      <th>Job reference</th>
-      <th>Items</th>
-      <th>Email</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for order in orders %}
-    <tr>
-      <td data-label="Date"><a href="{% url 'inventory:order_detail' order.pk %}">{{ order.created_at }}</a></td>
-      <td data-label="Client">{{ order.client_name }}</td>
-      <td data-label="Job reference">{{ order.job_reference|default:"—" }}</td>
-      <td data-label="Items">{{ order.lines.all|length }}</td>
-      <td data-label="Email">
-        {% if order.email_delivered %}
-        <span class="badge status-active">Sent</span>
-        {% else %}
-        <span class="badge status-review">Not sent</span>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty">No orders yet.</p>
-{% endif %}
+<form
+  id="order-filter-form"
+  class="filters"
+  method="get"
+  hx-get="{% url 'inventory:order_list' %}"
+  hx-target="#order-results"
+  hx-swap="innerHTML"
+  hx-trigger="input delay:200ms, change"
+>
+  {{ filter_form.q }}
+  {{ filter_form.model }}
+  {{ filter_form.min_items }}
+  {{ filter_form.max_items }}
+  <button type="submit" formaction="{% url 'inventory:order_export' %}" class="secondary" title="Export the orders currently matching these filters">Export .xlsx</button>
+</form>
+{{ filter_form.non_field_errors }}
+
+<div id="order-results">
+  {% include "inventory/partials/order_rows.html" %}
+</div>
 {% endblock %}
