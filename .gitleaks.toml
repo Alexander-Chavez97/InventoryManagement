@@ -1,0 +1,12 @@
+title = "gitleaks config"
+
+# Keep every default detection rule active -- we're only adding an
+# allowlist on top, not replacing the ruleset.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "EPCOM vendor catalog export -- product model numbers/SKUs (e.g. RBWAPG-5HACD2HND-BE, SPEEDFACE-V3L-QR) are random-looking alphanumeric strings that trip the generic-api-key rule's entropy check, but they're public hardware model numbers, not credentials. See inventory/management/commands/import_epcom_catalog.py for what this file actually is."
+paths = [
+  '''data/epcom_products\.csv''',
+]
